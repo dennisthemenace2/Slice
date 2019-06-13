@@ -1,2 +1,2 @@
 # Slice
-Bayesien Inference Engine with focus on slice sampling
+Bayesian inference engine with focus on slice sampling.
