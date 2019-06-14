@@ -112,7 +112,7 @@ ParseComputation <- setRefClass("ParseComputation",
                         .self$modelIdx = currentModel
                       },
                       isNumeric=function(char){
-                        ret = as.numeric(char)
+                        ret = suppressWarnings( as.numeric(char) )
                         return(!is.na(ret))
                       },
                       createNode=function(l1){
@@ -159,39 +159,64 @@ ParseComputation <- setRefClass("ParseComputation",
                         
                         pos = 1
                         op = ""
-                        p1 = ""
+                        p1 = NULL
                        #p2 = ""
                         while( pos<=length(allChars)){
                           tok=  lexer$getNextToken(allChars,pos)
                           token = tok$str
                           pos = tok$pos
-                          print(token)
+                          printf('token:%s',token)
+                          if(nchar(token) ==0){
+                            next;
+                          }
                           if(token=='('){
                             print("parse this first")
+                            cnt = 1
+                            end = 0
+                            for(c in pos:length(allChars)){
+                              if(allChars[c]==')'){
+                                cnt = cnt-1
+                              }else if(allChars[c]=='('){
+                                cnt = cnt +1
+                              }
+                              if(cnt==0){
+                                printf('set end:%s',c)
+                                end = c
+                                break;
+                                
+                              }
+                            }
+                            if(cnt!=0){
+                              printf('Cant find closing braket parsing:%s',text)
+                            }
+                            printf('parse this:%s',substr(text,pos,end-1))
+                            p1 = parse(substr(text,pos,end-1))
+                            pos = end+1
+                            next;
                           }
                           
-                          if(nchar(p1)==0){
-                            p1=token
+                          if(is.null(p1)){
+                            p1=createNode(token)
                             next;
                           }
                          # if(nchar(op)==0){
                           #check for dominance
                           if( any(op==c('*','\\') ) & any(token==c('+','-') ) ){
                             ## number has to be in node and this node and the new node has to be root
-                            lastNode$b= createNode(p1)
+                            lastNode$b= p1#createNode(p1)
                             newnode  = createOpNode(token)
                             newnode$a = root
                             root = newnode
                             lastNode = newnode
                             op = token
-                            p1=''
+                            p1=NULL
                             next
                           }
                           
                             op = token
                             newnode  = createOpNode(op)
-                            p1Node = createNode(p1)
-                            newnode$a = p1Node
+                            #p1Node = p1 #createNode(p1)
+                            newnode$a = p1
                             if(is.null(root)){
                               root = newnode
                              # lastNode=newnode
@@ -199,10 +224,10 @@ ParseComputation <- setRefClass("ParseComputation",
                               lastNode$b=newnode
                             }
                             lastNode=newnode
-                            p1=""
+                            p1=NULL
                         #    next
                         }
-                        last = createNode(p1);
+                        last = p1#createNode(p1);
                         if(is.null(root)){
                           root = last  
                         }else{
@@ -227,3 +252,8 @@ res$compute()
 text = "1*4+2+1*2*1+10"
 res = pc$parse(text)
 res$compute()
+
+text = "(1*4+3*(1*1))+2+1*2*1+10-1"
+res = pc$parse(text)
+res$compute()
+

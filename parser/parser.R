@@ -26,14 +26,19 @@ DistributionLexer <- setRefClass("DistributionLexer",
                        createDistribution= function(){
                          if(type=='dnorm'){
                            .self$distrib = NormalDistribution(name=.self$name) #create empty one
-                           if(hasData){
-                             .self$distrib$setData(data)
-                           }
-                          
+                         }else if(type =='dgamma'){
+                           .self$distrib = GammaDistribution(name=.self$name)
+                         }else if(type =='dunif'){
+                           .self$distrib = UniformDistribution(name=.self$name)
                          }else if(type=='Constant'){
                            .self$distrib = Constant(.self$name) #create empty one
+                           return()
                          }else{
                            printf('Distribution type:%s unknown !',type)
+                           return()
+                         }
+                         if(hasData){
+                           .self$distrib$setData(data)
                          }
                        }
                      )
@@ -227,7 +232,7 @@ Lexer <- setRefClass("Lexer",
                                       }
                                       
                                     }else if(state ==2){ ##get type of distrib
-                                      if(token=='dnorm'){
+                                      if(any(token==c('dnorm','dgamma','dunif') )){
                                         print('type dnowm but could be independen of that')
                                         #normal dist.
                                         #now get included terms and slots.

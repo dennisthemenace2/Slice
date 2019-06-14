@@ -67,7 +67,16 @@ Distribution <- setRefClass("Distribution",
                          .self$cvalue= matrix(runif(1)) ##think about initial values
                        },
                        logLike = function(){
+                       },
+                       setCurrentValue = function(v){
+                         .self$cvalue = matrix(v)
+                         return(TRUE)
+                       },
+                       getCurrentValue = function(v){
+                         return(.self$cvalue)
                        }
+                       
+                       
                        )
                      )
 
@@ -154,6 +163,85 @@ NormalDistribution <- setRefClass("NormalDistribution",
                                   
                               )
                        )
+
+
+
+GammaDistribution <- setRefClass("GammaDistribution",
+                                  fields = list(data='DataContainer'),
+                                  contains = "Distribution",
+                                  methods = list(
+                                    setData = function(data){
+                                      .self$data = DataContainer(data)
+                                    },
+                                    initialize = function(name=NULL){
+                                      callSuper(name)
+                                    },
+                                    logLike = function(){
+                                      a =   cslots[[1]]$compute()
+                                      b =   cslots[[2]]$compute()
+                                      #  printf("pred:%f,var:%f",pred,var)
+                                      if(!.self$data$empty){ ##obsevred likelyhood
+                                        singlelikelihoods = dgamma(.self$data$data, shape  = a, rate = b, log = T)  
+                                      }else{##unobseverd take sample at current position
+                                        singlelikelihoods = dgamma(.self$cvalue,  shape  = a, rate = b, log = T)  
+                                        printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
+                                      }
+                                      
+                                      sumll = sum(singlelikelihoods)
+                                      # printf("sumll:%f",sumll)
+                                      return(sumll)    
+                                    },
+                                    setCurrentValue = function(v){
+                                      if(v<0){
+                                        printf('Value ca not be negative for dgamma:%f',v)
+                                        return(FALSE)
+                                      }
+                                      callSuper(v)
+                                    }
+                                  )
+)
+
+
+
+UniformDistribution <- setRefClass("UniformDistribution",
+                                 fields = list(data='DataContainer'),
+                                 contains = "Distribution",
+                                 methods = list(
+                                   setData = function(data){
+                                     .self$data = DataContainer(data)
+                                   },
+                                   initialize = function(name=NULL){
+                                     callSuper(name)
+                                   },
+                                   logLike = function(){
+                                     min =   cslots[[1]]$compute()
+                                     max =   cslots[[2]]$compute()
+                                     #  printf("pred:%f,var:%f",pred,var)
+                                     if(!.self$data$empty){ ##obsevred likelyhood
+                                       singlelikelihoods = dunif(.self$data$data, min, max, log = T)  
+                                     }else{##unobseverd take sample at current position
+                                       singlelikelihoods = dunif(.self$cvalue, min, max, log = T)  
+                                       printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
+                                     }
+                                     
+                                     sumll = sum(singlelikelihoods)
+                                     # printf("sumll:%f",sumll)
+                                     return(sumll)    
+                                   },
+                                   setCurrentValue = function(v){
+                                     ##check ranges
+                                     min =   cslots[[1]]$compute()
+                                     max =   cslots[[2]]$compute()
+                                     if(v<min | v>max){
+                                       printf('value out of range:%f',v)
+                                       return(FALSE)
+                                     }
+                                     return(callSuper(v) )
+                                   }
+                                 )
+)
+
+
 
 ##
 #generate some data
@@ -243,6 +331,9 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            }
                            ##go recurrent throut the model.
                            ret = unlist( walkPlate(.self$model)  )
+                           if(nSamples ==1){
+                             return(ret)
+                           }
                            for( ns in 1:(nSamples-1) ){
                              s1 = walkPlate(.self$model)
                              ret = rbind(ret,unlist(s1))
@@ -260,24 +351,26 @@ MCMCsampler <- setRefClass("MCMCsampler",
                              printf('No nodes in%s',root$getName())
                            }
                            for(r in 1:length(rootList)){
+                             printf("%d nodes in root",length(rootList))
                              node = rootList[[r]] # this is the likelyhood we can take samples now.
                              # we shoudl check for data before taking sample...
                              if(class(node)=='Plate'){
                                printf('node is plate:%s',node$getName())
                              }else{
                                if(node$data$empty){
-                                 print('node has no data but ok...')
+                                 printf('node %s has no data but ok...',node$getName())
                                }
                              }
                              
                              ##for each slot this has to be a distibution
                              if(length(node$slots)==0){
-                               printf('No slots in node in%d',r)
+                               printf('No slots in node in %s',node$getName())
                                return(samplesList)
                              }
                              #need to sample from each one
                              for(s in 1:length(node$slots)){
                                #get plate ...
+                               printf('testing slot:%d',s)
                                cplate = node$slots[[s]]
                                if(class(cplate)=="Plate"){ #but it doenst need to be, but i could so if it wants evaluation
                                  print('ok is plate!')
@@ -288,7 +381,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                    return(samplesList)
                                  }
                                  
-                                
+                                printf('got %d nodes in this plate',length(cnodes))
                                  for(e in 1:length(cnodes)){
                                    ##ok this is the prior node finally. shoudl we check for values ? of if its constand and doesnt contain data
                                    priorNode = cnodes[[e]]
@@ -310,12 +403,12 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                      print('node contains data this should be a likelihood of some kind')
                                    }
                                    
-                                   ##walk up one step
-                                   retslist = walkPlate(cplate)
-                                   if(length(retslist)>0){
-                                     samplesList = append( samplesList,retslist)
-                                   }
                                  }
+                                ##walk up one step
+                                retslist = walkPlate(cplate)
+                                if(length(retslist)>0){
+                                  samplesList = append( samplesList,retslist)
+                                }
                                  ##ok we sampled platt go one level up
                                  
                                }else{
@@ -336,7 +429,14 @@ MCMCsampler <- setRefClass("MCMCsampler",
                          #eta = X%*%betanew
                          #newprop = calcProb(eta,Y,sigma)
                            oldvalue = prior$cvalue
-                           prior$cvalue =oldvalue  + rnorm(1,0,0.25) ##change proposal distribution somewhere
+                           
+                           repeat{
+                             newvalue =oldvalue  + rnorm(1,0,0.25)
+                             if(prior$setCurrentValue(newvalue)){
+                               break
+                             }
+                           }
+                           
                           printf('new value:%f',prior$cvalue )
                            newprop = likelihood$logLike()+prior$logLike()
                          

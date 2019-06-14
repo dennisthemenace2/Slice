@@ -9,13 +9,16 @@ printf <- function(...) invisible(print(sprintf(...)))
 
 my_model_str= "
 model regModel{
-#this is a comment
-y~ dnorm(x*beta1+beta0,1)
-beta0 ~ dnorm(0,1)
-beta1 ~ dnorm(0,1) #one more comment
+  #this is a comment
+  y~ dnorm(x*beta1 +beta0,sigma)
+  sigma~dgamma(0.01,0.01)
+  beta0 ~ dnorm(0,s)
+  s ~ dunif(0,1)
+  beta1 ~ dnorm(0,1) #one more comment
 }
 "
 model_str = my_model_str
+
 
 source('./distributions/cNodes.R')
 source('./distributions/base.R')
