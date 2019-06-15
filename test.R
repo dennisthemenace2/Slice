@@ -62,6 +62,23 @@ plot(samplesFromProblem[,2])
 
 
 
+## load model in Slice sampler
+
+sliceSample = SliceSampler(root_plate)
+
+sliceSamples = sliceSample$takeSample(1000)
+plot(sliceSamples[,1])
+plot(sliceSamples[,2])
+plot(sliceSamples[,3])
+plot(sliceSamples[,4])
+
+colnames(sliceSamples)
+
+mean(sliceSamples[,1])
+mean(sliceSamples[,2])
+mean(sliceSamples[,3])
+mean(sliceSamples[,4])
+
 
 
 

@@ -49,6 +49,9 @@ Distribution <- setRefClass("Distribution",
                      fields = list(dist_name='character',cvalue = 'matrix',
                                    slots='list',cslots='list'),
                      methods = list(
+                       getBounds = function(){
+                         return(c(-Inf,Inf))
+                       },
                        compute = function(){
                          return(.self$cvalue)
                        },
@@ -84,6 +87,9 @@ Constant <- setRefClass("Constant",
                                   fields = list(),
                                   contains = "Distribution",
                                   methods = list(
+                                    getBounds = function(){
+                                      return(c(cvalue,cvalue))
+                                    },
                                     initialize = function(value) {
                                       #print(class(value))
                                       .self$dist_name = as.character(value)
@@ -191,6 +197,9 @@ GammaDistribution <- setRefClass("GammaDistribution",
                                       # printf("sumll:%f",sumll)
                                       return(sumll)    
                                     },
+                                    getBounds = function(){
+                                      return(c(0,Inf))
+                                    },
                                     setCurrentValue = function(v){
                                       if(v<0){
                                         printf('Value ca not be negative for dgamma:%f',v)
@@ -237,6 +246,11 @@ UniformDistribution <- setRefClass("UniformDistribution",
                                        return(FALSE)
                                      }
                                      return(callSuper(v) )
+                                   },
+                                   getBounds = function(){
+                                     min =   cslots[[1]]$compute()
+                                     max =   cslots[[2]]$compute()
+                                     return(c(min,max))
                                    }
                                  )
 )
@@ -484,26 +498,102 @@ SliceSampler <- setRefClass("SliceSampler",
                              sample=function(likelihood,prior){
                                printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
                              
-                               x =  prior$cvalue
+                               x0 = prior$cvalue
                                
                                height =  likelihood$logLike()+prior$logLike() 
-                               y = runif(1, 0, exp(height) )    # Take a random y value
-                             
+                               
+                               #y = runif(1, 0, exp(height) )    # Take a random y value
+                               #y = log(y)
+                               y = log(runif(1, 0, 1 )) + height
+                               
                                f=function(x){ ##maybe we dont need to reset because we accept anyway
-                                 tmp =  prior$cvalue
-                                 prior$cvalue =matrix(x)
-                                 likelihood$logLike()+prior$logLike()
-                                 prior$cvalue =tmp
+                                 
+                                 (likelihood$logLike()+prior$logLike() )
                                }
-                               likelihood$logLike()+prior$logLike() 
+                             
+                               w = 0.1#abs(rnorm(1,0,1))#0.1 # typical slice size
+                               m = 10 # integer limiting the size
                                
-                               int = runif(1,0,1)
-                               x.interval =c(x-int,x+int)
-                       #### find end points
+                               int = estimateIntervalSteppingOut(likelihood,prior,x0,y,w,m)  
+                               ###get next value
+                               repeat{
+                                 printf('bounds: [%f,%f]',int[1],int[2])
+                                 r = runif(1, int[1],int[2])
+                                 print(r)
+                                 if(prior$setCurrentValue(matrix(r)) ){
+                                   y_value = f(r)
+                                   if(y_value>y){ ##is ok
+                                     printf('%f>%f accept point:%f',y_value,y,r)
+                                     break
+                                   }
+                                 }
+                                 printf('we need to adjust:%s',r)
+                                 ##point is not OK we have to adjust the slice
+                                 if(r <x0){ #more to the left
+                                   int[1] = r
+                                 }else{
+                                   int[2] = r
+                                 }
+                                 printf('repeat [%s,%s]',int[1],int[2])
+                                # if(any(is.na(r))){
+                                #   stop()
+                                # }
+                               }
+                               prior$setCurrentValue(r)
                                
-                               prior$cvalue
-                               
-                             }
+                               r
+                             },
+                              estimateIntervalSteppingOut= function(likelihood,prior,x0,y,w,m){
+                                f=function(x){ ##maybe we dont need to reset because we accept anyway
+                                  
+                                  (likelihood$logLike()+prior$logLike())
+                                }
+                                
+                                U = runif(1,0,1)
+                                L = x0-w*U
+                                R= L+w
+                                V = runif(1,0,1)
+                                J = floor(m*V)
+                                K = (m-1)-J
+                                
+                                printf('x0:%f starting bound:[%s,%s],J:%f,K:%f',x0,L,R,J,K)
+                                while(J>0){
+                                  if(! prior$setCurrentValue(L) ){
+                                    printf('could not set L value, we get bound ?%f',L)
+                                    bounds = prior$getBounds()
+                                    print(bounds)
+                                    L = bounds[1]
+                                    break;
+                                  }
+                                   fl = f(L)
+                                   print(fl)
+                                  
+                                   if(fl <y){
+                                     break;
+                                   }
+                                   L = L -w 
+                                   J = J-1
+                                }
+                                
+                                while(K>0){
+                                  if(! prior$setCurrentValue(R) ){
+                                    printf('could not set R value, we get bound ?%f',R)
+                                    bounds = prior$getBounds()
+                                    R = bounds[2]
+                                    break;
+                                  }
+                                  fr = f(R)
+                                  print(fr)
+                                  if(fr <y){
+                                    break;
+                                  }
+                                  R = R +w 
+                                  K = K-1
+                                }
+                                printf('get bounds: [%f,%f]',L,R)
+                                  
+                                return(c(L,R))
+                              }
                              
                            )
 )
