@@ -338,7 +338,7 @@ Lexer <- setRefClass("Lexer",
                                           print('initt for loop')
                                           state = 4 #for state 
                                           forCnter = forCnter+1 ##open for
-                                          forListElem = list('name'='','numbers'=NA,'current'=-1)
+                                          forListElem = list('name'='','numbers'='','current'=-1)
                                         }else{
                                           printf('%s unknown ctr seq',tokenName)
                                         }
@@ -404,10 +404,12 @@ Lexer <- setRefClass("Lexer",
                                       }
                                       
                                     }else if(state == 4){ ##read bound and variables for 'for'
-                                      printf('for loop bounds: %s',token)
+                                      printf('for loop read token: %s',token)
                                       
                                       if(token==')'){
                                         print('for loop ends and initialized')
+                                        forListElem$numbers = evalTokenBound(forListElem$numbers)
+                                        printf('for loop bounds:%s',forListElem$numbers )
                                         if(length(forStates)==0){
                                           forStates = list(forListElem)
                                         }else{
@@ -423,8 +425,7 @@ Lexer <- setRefClass("Lexer",
                                           printf('for loop variable:%s',token)
                                           forListElem$name = token ##set name
                                         }else{
-                                          forListElem$numbers = evalTokenBound(token)
-                                          printf('for loop bounds:%s',forListElem$numbers )
+                                          forListElem$numbers = paste(forListElem$numbers ,token,sep = '')
                                         }
                                       }
                                     }else if(state ==5){
