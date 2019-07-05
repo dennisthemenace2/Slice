@@ -49,6 +49,17 @@ ComputationNodeSub <- setRefClass("ComputationNodeSub",
                                     }
                                   )
 )
+
+ComputationNodeDiv <- setRefClass("ComputationNodeDiv",
+                                  contains='ComputationNode',
+                                  fields = list(),
+                                  methods = list(
+                                    compute=function(){##do compuation return result
+                                      res = callSuper()
+                                      return(as.vector(res$a) / as.vector(res$b) )
+                                    }
+                                  )
+)
 ComputationNodeMultiply <- setRefClass("ComputationNodeMultiply",
                                        contains='ComputationNode',
                                        fields = list(),
@@ -141,11 +152,13 @@ ParseComputation <- setRefClass("ParseComputation",
                       createOpNode=function(op){
                         printf('create OP node:%s',op)
                         if(op=='+'){
-                          ComputationNodeAdd()
+                          return(ComputationNodeAdd())
                         }else if(op=='-'){
-                          ComputationNodeSub()
+                          return(ComputationNodeSub())
                         }else if(op=='*'){
-                          ComputationNodeMultiply()
+                          return(ComputationNodeMultiply())
+                        }else if(op=='/'){
+                          return(ComputationNodeDiv())
                         }else{
                           printf('unkonwn op:%s',op)
                         }
@@ -201,7 +214,7 @@ ParseComputation <- setRefClass("ParseComputation",
                           }
                          # if(nchar(op)==0){
                           #check for dominance
-                          if( any(op==c('*','\\') ) & any(token==c('+','-') ) ){
+                          if( any(op==c('*','/') ) & any(token==c('+','-') ) ){
                             ## number has to be in node and this node and the new node has to be root
                             lastNode$b= p1#createNode(p1)
                             newnode  = createOpNode(token)
@@ -257,3 +270,6 @@ text = "(1*4+3*(1*1))+2+1*2*1+10-1"
 res = pc$parse(text)
 res$compute()
 
+text = "(1*4)/5"
+res = pc$parse(text)
+res$compute()
