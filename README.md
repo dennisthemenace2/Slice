@@ -11,7 +11,7 @@ It is supposed to be a highly flexible inference engine, that allows to utilize 
 
 
 Model similar to the BUGS language can be parsed to create a tree:
-
+```R
 model_str= "
 model regModel{
   #hierarchical structure of the model
@@ -25,5 +25,5 @@ model regModel{
   s ~ dunif(0,1)
 }
 "
-
+```
 This tree can be used to sample component wise from the posterior distribution.
