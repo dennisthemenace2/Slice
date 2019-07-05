@@ -1,6 +1,7 @@
 # lexer and parser
 
 
+
 DistributionLexer <- setRefClass("DistributionLexer",
                      fields = list(name='character',plainslots='list',slotMembers='list',type='character',hasData='logical',data='matrix',
                                    distrib='Distribution'),
@@ -76,7 +77,7 @@ Lexer <- setRefClass("Lexer",
                              methods = list(
                                getNextToken=function(str,pos){
                                  
-                                 delim = c('{','}','(',')','-','*','+','\\','~','=',',')
+                                 delim = c('{','}','(',')','-','*','+','/','~','=',',')
                                  commentChar = '#'
                                  commentMode = F
                                  cword=''
@@ -133,11 +134,25 @@ Lexer <- setRefClass("Lexer",
                                    print('No data list set. Please set a list with data first')
                                    return(NULL)
                                  }
+                                 ##cheack for array
+                                 index = getIndex(name)
+                                 if(!is.null(index)) {
+                                   printf('need to get index:%s',name)
+                                   name = index$name
+                                 }
+                                 
                                  dnames = names(data_list)
                                  for(i in 1:length(dnames)){
                                    if(name == dnames[i]){
                                      #found
-                                     return( data_list[[i]] )
+                                     if(!is.null(index)) {
+                                       if(!is.list(data_list[[i]])){
+                                         printf('%s is not of type list! type list is indicated by the array!',name)
+                                       }
+                                       return(data_list[[i]][[as.numeric(index$index) ]])
+                                     }else{
+                                       return( data_list[[i]] )
+                                     }
                                    }
                                  }
                                  return(NULL)
@@ -185,6 +200,78 @@ Lexer <- setRefClass("Lexer",
                                  }
                                  
                                },
+                               addParsedistribtuion =function(newmodel,tokenName,token,ret_token,str,forStates){
+                                 
+                                 if(!newmodel$chkDistName(tokenName)){
+                                   printf('There aready is a distribution with the name:%s',token)
+                                 }
+                                 nd =  DistributionLexer(tokenName,token)
+                                 ret_token = getNextToken(str,ret_token$pos)
+                                 token = ret_token$str
+                                 if(token !='('){
+                                   printf('expecting openen (, got:%s',token)
+                                 }
+                                 ##read each slot
+                                 plainText = ''
+                                 variableNames = c()
+                                 while(nchar(token)>0 & token!=')'){
+                                   ret_token = getNextToken(str,ret_token$pos)
+                                   token = ret_token$str
+                                   printf('reading slots token:%s pos%d',token,ret_token$pos)
+                                   ### need to check for [] so that we can take care of loops and stuff
+                                   ## i handle arrayies in a strange way
+                                   index = getIndex(token)
+                                   if(!is.null(index) ){
+                                     ##it is an array i need to handle that
+                                     ##check variable.
+                                     print('processing index for for')
+                                     
+                                     currentValue= -1
+                                     for(z in 1:length(forStates)){
+                                       if(forStates[[z]]$name==index$index){
+                                         
+                                         currentValue = forStates[[z]]$current
+                                         printf('found:%s value:%d',index,currentValue)
+                                         break;
+                                       }
+                                     }
+                                     if(currentValue == -1){
+                                       printf('couldnt find current value for array:%s',index$index)
+                                       #is numeric ?
+                                       currentValue = resolveIndex(index$index)
+                                       if(is.null(currentValue)){
+                                         ##its not numeric, is it data ?
+                                         printf('could not reslove the variable:%s',index$index)
+                                       }
+                                     }
+                                     #print(index)
+                                     token = paste(index$name,'[', currentValue, ']',sep='' )
+                                     
+                                     printf('new token:%s',token)
+                                   }
+                                   
+                                   if(token!=')' & token!=','){
+                                     plainText = paste(plainText,token,sep='')
+                                   }
+                                   # printf('plainText%s',plainText)
+                                   if(ret_token$type!='DELIM'){ # variable
+                                     variableNames = c(variableNames,token )
+                                   }
+                                   if(token==','| token==')'){ #next slot
+                                     print('new slot')
+                                     variableNames = unique(variableNames)
+                                     printf('add plaintext:%s',plainText)
+                                     nd$addPlainSlot(plainText)
+                                     nd$addSlotMembers(list(variableNames) )
+                                     plainText = ''
+                                     variableNames = c()
+                                   }
+                                 }
+                                 #add all slots or so and reset state
+                                 newmodel$dists= append(newmodel$dists,nd)
+                                 
+                                 return(ret_token)
+                               },
                                #lex some model
                                createModel=function(str){
                                  newmodel =NULL
@@ -211,75 +298,144 @@ Lexer <- setRefClass("Lexer",
                                  i = 100
                                  newmodel = ModelLexer(modelName)
                                  
+                                 ##used to model for loops
+                                 forCnter = 0
+                                 forStates = list() 
+                                 forListElem = list()
+                                 ########################
+                                 
                                  state = 0 #
                                  while(nchar(token)>0){
                                     ret_token = getNextToken(str,ret_token$pos)
                                     token = ret_token$str
-                                    printf('token:%s pos%d',token,ret_token$pos)
+                                    printf('token:%s pos%d ,state:%d',token,ret_token$pos,state)
                                     if(state ==0){
+                                      if(token=='}'){ #something is closed
+                                        if(forCnter>0){
+                                          print('closing for')
+                                          forStates = forStates[-forCnter]
+                                          forCnter = forCnter-1
+                                          next;
+                                        }else{
+                                          print('closing model !')
+                                          next;
+                                        }
+                                      }
                                       tokenName = token;
+                                      
                                       state = 1
                                     }else if(state ==1){
-                                      whatType = token
+                                      #whatType = token
                                       if(token=='~'){ #oh its a distibution
                                         printf("%s is distib",tokenName)
                                         state = 2
                                       }else if(token=='='){ # assignemnt some compvariable.
                                         printf("%s is cn",tokenName)
                                         state = 3
+                                      }else if(token=='('){
+                                        ##check for for
+                                        if(tokenName == 'for'){ ##found a for statement
+                                          print('initt for loop')
+                                          state = 4 #for state 
+                                          forCnter = forCnter+1 ##open for
+                                          forListElem = list('name'='','numbers'=NA,'current'=-1)
+                                        }else{
+                                          printf('%s unknown ctr seq',tokenName)
+                                        }
+                                        
                                       }else{
                                         printf('unknown type:%s for:%s in model%s',token,tokenName,modelName)
                                       }
                                       
                                     }else if(state ==2){ ##get type of distrib
                                       if(any(token==c('dnorm','dgamma','dunif') )){
-                                        print('type dnowm but could be independen of that')
+                                        print('type dnorm but could be independent of that')
                                         #normal dist.
                                         #now get included terms and slots.
                                         #have to check if already exist with the same name !
-                                         if(!newmodel$chkDistName(tokenName)){
-                                           printf('There aready is a distribution with the name:%s',token)
-                                         }
-                                         nd =  DistributionLexer(tokenName,token)
-                                         ret_token = getNextToken(str,ret_token$pos)
-                                         token = ret_token$str
-                                         if(token !='('){
-                                           printf('expecting openen (, got:%s',token)
-                                         }
-                                         ##read each slot
-                                         plainText = ''
-                                         variableNames = c()
-                                         while(nchar(token)>0 & token!=')'){
-                                           ret_token = getNextToken(str,ret_token$pos)
-                                           token = ret_token$str
-                                           printf('reading slots token:%s pos%d',token,ret_token$pos)
-                                           if(token!=')' & token!=','){
-                                             plainText = paste(plainText,token,sep='')
-                                           }
-                                          # printf('plainText%s',plainText)
-                                           if(ret_token$type!='DELIM'){ # variable
-                                             variableNames = c(variableNames,token )
-                                           }
-                                           if(token==','| token==')'){ #next slot
-                                             print('new slot')
-                                             variableNames = unique(variableNames)
-                                             printf('add plaintext:%s',plainText)
-                                             nd$addPlainSlot(plainText)
-                                             nd$addSlotMembers(list(variableNames) )
-                                             plainText = ''
-                                             variableNames = c()
-                                           }
-                                         }
-                                         #add all slots or so and reset state
-                                         newmodel$dists= append(newmodel$dists,nd)
+                                        index = getIndex(tokenName)
+                                        if(!is.null(index)){
+                                          
+                                          name = index$name
+                                          index = index$index
+                                          
+                                          numbers = NULL
+                                          forIdx = 0
+                                          if(length(forStates)>0){ ##might be for index
+                                            for(z in 1:length(forStates)){
+                                              if(forStates[[z]]$name==index){
+                                                printf('found:%s',index)
+                                                numbers =forStates[[z]]$numbers
+                                                forIdx = z
+                                                break;
+                                              }
+                                            }
+                                          }
+                                          
+                                          if(is.null(numbers)){
+                                            printf('variable is not index, try to resolve: %s',index)
+                                            numbers =resolveIndex(index)
+                                            if(is.null(numbers)){
+                                              printf('could not resolce index:%s',index)
+                                            }else{
+                                              numbers = 1:numbers
+                                            }
+                                          }
+                                          
+                                          for(icx in 1:length(numbers)){
+                                            num = numbers[icx]
+                                            if(forIdx>0){
+                                              forStates[[forIdx]]$current = icx
+                                            }
+                                            tokenName = paste(name, '[', num,']', sep='' , collapse = '')
+                                            printf('create:%s',tokenName)
+                                            tt = addParsedistribtuion(newmodel,tokenName,token,ret_token,str,forStates)
+                                          }
+                                          ret_token = tt
+                                        }else{
+                                         ret_token = addParsedistribtuion(newmodel,tokenName,token,ret_token,str)
+                                        }
                                         # .self$model_list = append(.self$model_list,newmodel)
                                          state = 0
                                          print('reset state')
+                                         
                                       }else{
                                         printf('unknown distribution:%s',token)
                                       }
                                       
+                                    }else if(state == 4){ ##read bound and variables for 'for'
+                                      printf('for loop bounds: %s',token)
+                                      
+                                      if(token==')'){
+                                        print('for loop ends and initialized')
+                                        if(length(forStates)==0){
+                                          forStates = list(forListElem)
+                                        }else{
+                                          forStates = append(forStates,forListElem)
+                                          
+                                        }
+                                        state = 5 ##expect opening
+                                        next;
+                                      }
+                                      
+                                      if(token != 'in' ){
+                                        if(forListElem$name==''){
+                                          printf('for loop variable:%s',token)
+                                          forListElem$name = token ##set name
+                                        }else{
+                                          forListElem$numbers = evalTokenBound(token)
+                                          printf('for loop bounds:%s',forListElem$numbers )
+                                        }
+                                      }
+                                    }else if(state ==5){
+                                      if(token == '{'){
+                                        print('got opening bracket continue')
+                                        state = 0
+                                      }else{
+                                        printf('expecting { got:%s',token)
+                                      }
                                     }
+                                      
                                     
                                     i = i-1
                                     if(i==0){
@@ -288,6 +444,50 @@ Lexer <- setRefClass("Lexer",
                                     }
                                  }
                                  newmodel
+                               },
+                               getIndex=function(token){
+                                 chars =strsplit(token, "")[[1]]
+                                 start = 0
+                                 end = 0
+                                 for(i in 1:length(chars)){
+                                   if(chars[i] =='['){
+                                     start = i+1
+                                     next
+                                   }
+                                   if(chars[i]==']'){
+                                    end = i-1    
+                                   }
+                                 }
+                                 if(start==0 & end ==0){
+                                   ##its not an array
+                                   return(NULL)
+                                 }
+                                 list('index'=paste(chars[start:end], sep='',collapse=''),
+                                      'name' = paste(chars[1:(start-2)],sep='' ,collapse = '')  )
+                               },
+                               getDataOrNumeric =function(str){
+                                 res1 = as.numeric(str)
+                                 if(is.na(res1) ){
+                                   res1=findData(str)
+                                   if(is.null(res1)){
+                                     printf('data %s not found',str)
+                                     return(NULL)
+                                   }
+                                 }
+                                 res1
+                               },
+                               evalTokenBound =function(token){ ##function
+                                 #check for ':'
+                                 printf('evalTokenBound:%s',token)
+                                 split = strsplit(token,':')[[1]]
+                                 if(length(split)==2){
+                                  # printf('split:%s',split)
+                                   start = getDataOrNumeric(split[1])
+                                   end = getDataOrNumeric(split[2])
+                                   return(start:end)
+                                 }else{
+                                   sprintf('problem processing token:%s',token)
+                                 }
                                },
                                parseModel = function(){
                                  if(length(model_list)==0){
@@ -300,7 +500,7 @@ Lexer <- setRefClass("Lexer",
 
                                  for(k in 1:length(model_list)){
                                    cntObserved = 0
-                                   rootNode = NULL
+                                   rootNode = list()
                                    cmodel = .self$model_list[[k]]
                                    dists = cmodel$dists
                                    printf('start with model:%s',cmodel$name)
@@ -309,8 +509,10 @@ Lexer <- setRefClass("Lexer",
                                      #check for data
                                      datalink = findData(cd$getName())
                                      if(!is.null(datalink)){ #found data
+                                       print('has data')
+                                       print(datalink)
                                        cd$setData(datalink)
-                                       rootNode = cd
+                                       rootNode = append(rootNode,cd)
                                        cntObserved= cntObserved +1
                                      }
                                      ##create all distributions
@@ -321,6 +523,7 @@ Lexer <- setRefClass("Lexer",
                                      print('No node with observed data thats odd !')
                                    }else if(cntObserved==1){
                                      print('One observed Node, this will be used as root of the model')
+                                    # rootNode = 
                                    }else{
                                      print('Multible nodes with data observed, choosing first for root')
                                    }
@@ -328,8 +531,10 @@ Lexer <- setRefClass("Lexer",
                                    ###ok create model
                                    
                                    plate_root = Plate(cmodel$name) ##create root plate
-                                 
-                                   plate_root$addNode(rootNode$distrib) ##add root node
+                                 ##do i have to add all to root
+                                   for(i in 1:length(rootNode)){
+                                     plate_root$addNode(rootNode[[i]]$distrib) ##add root node
+                                   }
                                    
                                    for(i in 1:length(dists)){
                                      print(length(dists))
@@ -377,8 +582,10 @@ Lexer <- setRefClass("Lexer",
                                          modelPtr = modelPtr$distrib
                                          
                                          if(class(modelPtr)!='Constant'){
-                                           print('add !!!!!!')
+                                           print('add dists do the plate!!!!!!')
                                            step_plate$addNode( modelPtr) 
+                                           ##also set parent here for double linked list
+                                           modelPtr$addParentNode(cd$distrib)
                                          }else{
                                            if(length(cd$slotMembers[[x]])==1 ){ #only 1 constant
                                              print('only one constant')
@@ -440,6 +647,22 @@ Lexer <- setRefClass("Lexer",
                                    
                                    }###all models are done
                                  return(plate_root)
+                               },
+                               resolveIndex=function(index){
+                                 currentValue =  getDataOrNumeric(index)
+                                 if(is.null(currentValue)){
+                                   ##its not numeric, is it data ?
+                                   printf('could not reslove the variable:%s',index)
+                                   #it might be an expression to resolve
+                                   pc = ParseComputation(lex=.self) #this will break with different models
+                                   res = pc$parse(index)
+                                   currentValue = res$compute()
+                                   if(is.Null(currentValue) | is.na(currentValue)){
+                                     printf('definitely could not reslove this variable:%s',index)
+                                     return(NULL)
+                                   }
+                                 }
+                                 return(currentValue)
                                },
                                findNextBlock = function(str,pos){
                                  active = F

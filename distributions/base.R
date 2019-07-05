@@ -47,8 +47,29 @@ Plate <- setRefClass("Plate",
 Distribution <- setRefClass("Distribution",
                             contains='Node',
                      fields = list(dist_name='character',cvalue = 'matrix',
-                                   slots='list',cslots='list'),
+                                   slots='list',cslots='list',parents='list' ),
                      methods = list(
+                       addParentNode =function(node){
+                         .self$parents = append(.self$parents,node)
+                       },
+                       isLastParentNode=function(name){
+                         if(length(.self$parents)==0){
+                           return(FALSE)
+                         }
+                         return(.self$parents[[length(.self$parents)]]$getName() ==name )
+                       },
+                       getParentNode = function(name){
+                         
+                         if(length(.self$parents)==0){
+                           return(NULL)
+                         }
+                         for(i in 1:length(.self$parents)){
+                           if(.self$parents[[i]]$getName() == name){##found
+                             return(.self$parents[[i]])
+                           }
+                         }
+                         return(NULL)
+                       },
                        getBounds = function(){
                          return(c(-Inf,Inf))
                        },
@@ -382,12 +403,13 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                return(samplesList)
                              }
                              #need to sample from each one
+                             printf('going through slots for node:%s',node$getName())
                              for(s in 1:length(node$slots)){
                                #get plate ...
                                printf('testing slot:%d',s)
                                cplate = node$slots[[s]]
                                if(class(cplate)=="Plate"){ #but it doenst need to be, but i could so if it wants evaluation
-                                 print('ok is plate!')
+                                 printf('ok %s is plate!',cplate$getName())
                                  ## we have to sample for each element
                                  cnodes = cplate$getNodeList()
                                  if(length(cnodes)==0 ){
@@ -395,24 +417,43 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                    return(samplesList)
                                  }
                                  
-                                printf('got %d nodes in this plate',length(cnodes))
+                                printf('got %d nodes in this plate:%s',length(cnodes),cplate$getName())
                                  for(e in 1:length(cnodes)){
                                    ##ok this is the prior node finally. shoudl we check for values ? of if its constand and doesnt contain data
                                    priorNode = cnodes[[e]]
                                    ##echeck for type palte
                                    if(class(priorNode)=='Plate'){
                                      print('is plate i need to go deeper')
-                                     stop('not implemnetd yet')
+                                     #just call walk plate with this ?
+                                     stop('not implemented yet')
                                      next
                                    }
                                    
                                    if(priorNode$data$empty){
-                                     print('thats great we can sample')
+                                     printf('thats great we can sample:',priorNode$getName())
                                      ## ok we found that we need to take samples from
-                                     #like = node
-                                     retssample = sample(node,priorNode)
+                                     
+                                     ##not so quick we need to check if we are last parent (or if hasnt been sampled already)
+                                     #if more parents than one, we need to give a list of all parents to 
+                                     #calculate the likelihood correctly, and avoid sampling twice
+                                     if(length(priorNode$parents)>1){
+                                       if(priorNode$isLastParentNode(node$getName() ) ){
+                                          ##is last
+                                         ## call with list of nodes,actually since its double linked list I could also only call with prior
+                                         #this would make it less strange
+                                         printf('node: %s is last parent of node:%s',node$getName(),priorNode$getName())
+                                         retssample = sample(priorNode$parents,priorNode) 
+                                       }else{
+                                         printf('node: %s is not last parent of node:%s',node$getName(),priorNode$getName())
+                                         next;
+                                       }
+                                     }else{
+                                       retssample = sample(node,priorNode)  
+                                     }
+                                     
                                      nodeName = priorNode$getName()
-                                     samplesList[[nodeName]] =retssample
+                                     samplesList = append( samplesList,retssample)
+                                     names(samplesList)[length(samplesList)] =nodeName
                                    }else{
                                      print('node contains data this should be a likelihood of some kind')
                                    }
@@ -420,6 +461,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                  }
                                 ##walk up one step
                                 retslist = walkPlate(cplate)
+                              #  printf('returning from walk with samples:%s',retslist)
                                 if(length(retslist)>0){
                                   samplesList = append( samplesList,retslist)
                                 }
@@ -432,13 +474,36 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            }
                            return(samplesList)
                          },
+                         #helper to consider list objects
+                         getLikelihood = function(likelihood){
+                           likesum = 0
+                           if(is.list(likelihood)){
+                             for(i in 1:length(likelihood)){
+                               likesum = likesum +likelihood[[i]]$logLike()
+                             }
+                           }else{
+                             likesum =likelihood$logLike()
+                           }
+                           return(likesum)
+                         },
+                         #### ok now likelihood can be list, which is strange since prior already contains all information needed
                          sample=function(likelihood,prior){
-                            printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
+                           if(class(likelihood)=='list' ){
+                             printf('taking sample from likelhoods list:prior:%s',prior$getName() )
+                             for(i in 1:length(likelihood)){
+                               printf("likelihood:%d %s",i,likelihood[[i]]$getName())
+                             }
+                           }else{
+                             printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
+                           }
                          ###mcmc step
                          # betanew= beta + t(rmvnorm( 1,rep(0,p),diag(p)*0.1 ))
                          # oldprob = calcProb(X%*%beta,Y,sigma)
                          
-                           oldprob = likelihood$logLike()+prior$logLike() ##current position
+                          
+                           ##use this little function to consider type list 
+                          oldprob = getLikelihood(likelihood)+prior$logLike() ##current position
+                           
                          
                          #eta = X%*%betanew
                          #newprop = calcProb(eta,Y,sigma)
@@ -452,7 +517,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            }
                            
                           printf('new value:%f',prior$cvalue )
-                           newprop = likelihood$logLike()+prior$logLike()
+                          newprop = getLikelihood(likelihood)+prior$logLike()
                          
                            printf('newprop:%f,oldprob:%f',newprop,oldprob )
                            
@@ -496,20 +561,25 @@ SliceSampler <- setRefClass("SliceSampler",
                            fields = list(),
                            methods = list(
                              sample=function(likelihood,prior){
-                               printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
+                               if(!is.list(likelihood)){
+                                 printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
+                               }else{
+                                 printf('taking sample from for prior:%s with a list of parents',prior$getName() )
+                               }
                              
                                x0 = prior$cvalue
                                
-                               height =  likelihood$logLike()+prior$logLike() 
+                               f=function(){ ##maybe we dont need to reset because we accept anyway
+                                 return(getLikelihood(likelihood)+prior$logLike() )
+                               }
+                               
+                               height =  f()
                                
                                #y = runif(1, 0, exp(height) )    # Take a random y value
                                #y = log(y)
                                y = log(runif(1, 0, 1 )) + height
                                
-                               f=function(x){ ##maybe we dont need to reset because we accept anyway
-                                 
-                                 (likelihood$logLike()+prior$logLike() )
-                               }
+                               
                              
                                w = 0.1#abs(rnorm(1,0,1))#0.1 # typical slice size
                                m = 10 # integer limiting the size
@@ -521,7 +591,7 @@ SliceSampler <- setRefClass("SliceSampler",
                                  r = runif(1, int[1],int[2])
                                  print(r)
                                  if(prior$setCurrentValue(matrix(r)) ){
-                                   y_value = f(r)
+                                   y_value = f()
                                    if(y_value>y){ ##is ok
                                      printf('%f>%f accept point:%f',y_value,y,r)
                                      break
@@ -544,9 +614,8 @@ SliceSampler <- setRefClass("SliceSampler",
                                r
                              },
                               estimateIntervalSteppingOut= function(likelihood,prior,x0,y,w,m){
-                                f=function(x){ ##maybe we dont need to reset because we accept anyway
-                                  
-                                  (likelihood$logLike()+prior$logLike())
+                                f=function(){ ##maybe we dont need to reset because we accept anyway
+                                  return(getLikelihood(likelihood)+prior$logLike())
                                 }
                                 
                                 U = runif(1,0,1)
@@ -565,7 +634,7 @@ SliceSampler <- setRefClass("SliceSampler",
                                     L = bounds[1]
                                     break;
                                   }
-                                   fl = f(L)
+                                   fl = f()
                                    print(fl)
                                   
                                    if(fl <y){
@@ -582,7 +651,7 @@ SliceSampler <- setRefClass("SliceSampler",
                                     R = bounds[2]
                                     break;
                                   }
-                                  fr = f(R)
+                                  fr = f()
                                   print(fr)
                                   if(fr <y){
                                     break;
