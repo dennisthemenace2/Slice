@@ -175,7 +175,7 @@ NormalDistribution <- setRefClass("NormalDistribution",
                                     singlelikelihoods = dnorm(.self$data$data, mean = pred, sd = var, log = T)  
                                   }else{##unobseverd take sample at current position
                                     singlelikelihoods = dnorm(.self$cvalue, mean = pred, sd = var, log = T)  
-                                    printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
+                                #    printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
                                   }
                                   
                                   sumll = sum(singlelikelihoods)
@@ -211,7 +211,7 @@ GammaDistribution <- setRefClass("GammaDistribution",
                                         singlelikelihoods = dgamma(.self$data$data, shape  = a, rate = b, log = T)  
                                       }else{##unobseverd take sample at current position
                                         singlelikelihoods = dgamma(.self$cvalue,  shape  = a, rate = b, log = T)  
-                                        printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
+                                     #   printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
                                       }
                                       
                                       sumll = sum(singlelikelihoods)
@@ -251,7 +251,7 @@ UniformDistribution <- setRefClass("UniformDistribution",
                                        singlelikelihoods = dunif(.self$data$data, min, max, log = T)  
                                      }else{##unobseverd take sample at current position
                                        singlelikelihoods = dunif(.self$cvalue, min, max, log = T)  
-                                       printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
+                                   #    printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
                                      }
                                      
                                      sumll = sum(singlelikelihoods)
@@ -375,7 +375,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            }
                            ret
                          },
-                         walkPlate=function(root){
+                         walkPlate=function(root,parentName=''){
                            samplesList = list()
                            
                            if(class(root)!='Plate'){
@@ -388,6 +388,14 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            for(r in 1:length(rootList)){
                              printf("%d nodes in root",length(rootList))
                              node = rootList[[r]] # this is the likelyhood we can take samples now.
+                             
+                             ### check if parent is legit to call me
+                             if(parentName !=''){
+                               if(!node$isLastParentNode(parentName) ){
+                                 next
+                               }
+                             }
+                             
                              # we shoudl check for data before taking sample...
                              if(class(node)=='Plate'){
                                printf('node is plate:%s',node$getName())
@@ -421,6 +429,9 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                  for(e in 1:length(cnodes)){
                                    ##ok this is the prior node finally. shoudl we check for values ? of if its constand and doesnt contain data
                                    priorNode = cnodes[[e]]
+                                 
+                                   
+                                   
                                    ##echeck for type palte
                                    if(class(priorNode)=='Plate'){
                                      print('is plate i need to go deeper')
@@ -428,7 +439,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                      stop('not implemented yet')
                                      next
                                    }
-                                   
+                                 
                                    if(priorNode$data$empty){
                                      printf('thats great we can sample:',priorNode$getName())
                                      ## ok we found that we need to take samples from
@@ -448,19 +459,25 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                          next;
                                        }
                                      }else{
+                                       printf('sample prior: %s prior:%s',node$getName(),priorNode$getName())
                                        retssample = sample(node,priorNode)  
                                      }
                                      
                                      nodeName = priorNode$getName()
                                      samplesList = append( samplesList,retssample)
                                      names(samplesList)[length(samplesList)] =nodeName
+
+                             
                                    }else{
                                      print('node contains data this should be a likelihood of some kind')
                                    }
                                    
                                  }
                                 ##walk up one step
-                                retslist = walkPlate(cplate)
+                                ##only walk up with last parent
+                              
+                            
+                                retslist = walkPlate(cplate,node$getName())
                               #  printf('returning from walk with samples:%s',retslist)
                                 if(length(retslist)>0){
                                   samplesList = append( samplesList,retslist)
@@ -488,14 +505,14 @@ MCMCsampler <- setRefClass("MCMCsampler",
                          },
                          #### ok now likelihood can be list, which is strange since prior already contains all information needed
                          sample=function(likelihood,prior){
-                           if(class(likelihood)=='list' ){
-                             printf('taking sample from likelhoods list:prior:%s',prior$getName() )
-                             for(i in 1:length(likelihood)){
-                               printf("likelihood:%d %s",i,likelihood[[i]]$getName())
-                             }
-                           }else{
-                             printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
-                           }
+                      #     if(class(likelihood)=='list' ){
+                      #       printf('taking sample from likelhoods list:prior:%s',prior$getName() )
+                      #       for(i in 1:length(likelihood)){
+                      #         printf("likelihood:%d %s",i,likelihood[[i]]$getName())
+                      #       }
+                      #     }else{
+                       #      printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
+                      #     }
                          ###mcmc step
                          # betanew= beta + t(rmvnorm( 1,rep(0,p),diag(p)*0.1 ))
                          # oldprob = calcProb(X%*%beta,Y,sigma)
@@ -510,16 +527,16 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            oldvalue = prior$cvalue
                            
                            repeat{
-                             newvalue =oldvalue  + rnorm(1,0,0.25)
+                             newvalue =oldvalue  + rnorm(1,0,0.15)
                              if(prior$setCurrentValue(newvalue)){
                                break
                              }
                            }
                            
-                          printf('new value:%f',prior$cvalue )
+                      #    printf('new value:%f',prior$cvalue )
                           newprop = getLikelihood(likelihood)+prior$logLike()
                          
-                           printf('newprop:%f,oldprob:%f',newprop,oldprob )
+                       #    printf('newprop:%f,oldprob:%f',newprop,oldprob )
                            
                          # MH Acceptance Ratio on Log Scale
                            ratio<-(newprop)-(oldprob)
