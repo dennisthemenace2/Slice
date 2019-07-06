@@ -26,4 +26,4 @@ model regModel{
 }
 "
 ```
-This tree can be used to sample component wise from the posterior distribution.
+This tree can be used to sample componentwise from the posterior distribution.
