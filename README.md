@@ -26,7 +26,43 @@ model regModel{
 }
 "
 ```
+
+
+
 This tree can be used to sample componentwise from the posterior distribution.
+
+
+```R
+#generate some data
+set.seed(1234)
+n <- 100
+beta   <- c(1.4,-0.8)
+sigma2 <- 1
+X<-cbind(rnorm(n,2,1),1)
+y<- matrix(rnorm(n,X%*% beta ,sigma2) ,ncol = 1)
+x<- matrix(X[,1],ncol = 1)
+
+#preare data list that contains the data and variables
+data_list = list( 'y'=list(y,y) , 'x'=list(x,x) ,'k'=2)
+
+
+lex = Lexer()
+lex$setModelString(model_str)
+lex$setModelData(data_list)
+
+lex$lexModel() ## preapres the model
+root_plate = lex$parseModel() ## creates the model
+
+### parsed model can be used to sample
+sliceSample = SliceSampler(root_plate)
+sliceSamples = sliceSample$takeSample(1) ## take 1 sample only
+
+#>sliceSamples
+#>  beta1[1]   beta0[1]   beta1[2]   beta0[2]          s      sigma 
+#> 1.3394608 -0.4819224  1.3985531 -0.5516930  0.6699176  1.0572532 
+
+```
+
 
 
 # Todo list
