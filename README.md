@@ -55,14 +55,12 @@ root_plate = lex$parseModel() ## creates the model
 
 ### parsed model can be used to sample
 sliceSample = SliceSampler(root_plate)
-sliceSamples = sliceSample$takeSample(1) ## take 1 sample only
+sliceSamples = sliceSample$takeSample(1000) ## take 1000 samples
 
-#>sliceSamples
+colMeans(sliceSamples)
 #>  beta1[1]   beta0[1]   beta1[2]   beta0[2]          s      sigma 
-#> 1.3394608 -0.4819224  1.3985531 -0.5516930  0.6699176  1.0572532 
-
+#> 1.3266858 -0.6038927  1.3168006 -0.5858345  0.6682655  1.0420163 
 ```
-
 
 
 # Todo list
