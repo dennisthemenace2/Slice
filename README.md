@@ -27,3 +27,15 @@ model regModel{
 "
 ```
 This tree can be used to sample componentwise from the posterior distribution.
+
+
+# Todo list
+
+* "Computation nodes" to store and use computations
+* support for more dimensional arrays
+* add bootstrapping support
+* more distributions
+* add support for user defined functions
+* more Sampler 
+* data section for data preprocessing ?
+* support multiple models sections and utilize results across them
