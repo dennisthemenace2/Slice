@@ -34,6 +34,9 @@ DistributionLexer <- setRefClass("DistributionLexer",
                          }else if(type=='Constant'){
                            .self$distrib = Constant(.self$name) #create empty one
                            return()
+                         }else if(type == 'storage'){
+                           .self$distrib = StorageNode(.self$name) #create empty one
+                           return()
                          }else{
                            printf('Distribution type:%s unknown !',type)
                            return()
@@ -167,6 +170,20 @@ Lexer <- setRefClass("Lexer",
                                setModelString= function(model_str=""){
                                  .self$model_str=model_str
                                },
+                               hasSubstring=function(str,text){
+                                 
+                                 ret_token = c()
+                                 ret_token$pos = 1
+                                 token = 'dummy'
+                                 while(nchar(token)>0){
+                                   ret_token = getNextToken(text,ret_token$pos)
+                                   token = ret_token$str
+                                   if(token==str){
+                                     return(TRUE)
+                                   }
+                                 }
+                                 return(FALSE)
+                               },
                                lexModel =function(){
                                  if(nchar(model_str)==0){
                                    print('No model loaded')
@@ -200,21 +217,41 @@ Lexer <- setRefClass("Lexer",
                                  }
                                  
                                },
-                               addParsedistribtuion =function(newmodel,tokenName,token,ret_token,str,forStates){
+                               addParsedistribtuion =function(newmodel,tokenName,token,ret_token,str,forStates,isStorageNode=F){
                                  
                                  if(!newmodel$chkDistName(tokenName)){
                                    printf('There aready is a distribution with the name:%s',token)
                                  }
-                                 nd =  DistributionLexer(tokenName,token)
-                                 ret_token = getNextToken(str,ret_token$pos)
-                                 token = ret_token$str
-                                 if(token !='('){
-                                   printf('expecting openen (, got:%s',token)
+                                 if(!isStorageNode){
+                                   nd =  DistributionLexer(tokenName,token)
+                                   ret_token = getNextToken(str,ret_token$pos)
+                                   token = ret_token$str
+                                   if(token !='('){
+                                     printf('expecting openen (, got:%s',token)
+                                   }
+                                 }else{
+                                   nd =  DistributionLexer(tokenName,'storage')
+                                   ##only till end of line and revert last token 
+                                   newlines = which(str=='\n') 
+                                   str=str[1:(newlines[which(newlines >= ret_token$pos)[1]] )  ]
+                                   str[length(str)] = ')'
+                                   
+                                 #  prevAssigment = which(str=='=')
+                                #   prevToken = which( prevAssigment < ret_token$pos  )
+                                   #ret_token$pos =
+                                 #    print(prevAssigment[length(prevToken)]+1)
+                                #   printf('str:%s',paste(str,collapse = '',sep='' ) )
+                                   ret_token$pos = ret_token$pos - nchar(token)
+                                 #  print( ret_token$pos)
+                                #   print
+                                   
                                  }
+                                 
                                  ##read each slot
+                                 openingCnt = 1
                                  plainText = ''
                                  variableNames = c()
-                                 while(nchar(token)>0 & token!=')'){
+                                 while(nchar(token)>0 & openingCnt>0 ){
                                    ret_token = getNextToken(str,ret_token$pos)
                                    token = ret_token$str
                                    printf('reading slots token:%s pos%d',token,ret_token$pos)
@@ -250,14 +287,21 @@ Lexer <- setRefClass("Lexer",
                                      printf('new token:%s',token)
                                    }
                                    
-                                   if(token!=')' & token!=','){
-                                     plainText = paste(plainText,token,sep='')
-                                   }
                                    # printf('plainText%s',plainText)
                                    if(ret_token$type!='DELIM'){ # variable
                                      variableNames = c(variableNames,token )
                                    }
-                                   if(token==','| token==')'){ #next slot
+                                   if(token==')' ){
+                                     openingCnt = openingCnt -1
+                                   }else if(token=='(' ){
+                                     openingCnt= openingCnt +1
+                                     
+                                   }
+                                   if(nchar(token)>0 & token!=',' & openingCnt>0){
+                                     plainText = paste(plainText,token,sep='')
+                                   }
+                                   
+                                   if(token==',' | openingCnt==0 ){ #next slot
                                      print('new slot')
                                      variableNames = unique(variableNames)
                                      printf('add plaintext:%s',plainText)
@@ -267,6 +311,7 @@ Lexer <- setRefClass("Lexer",
                                      variableNames = c()
                                    }
                                  }
+                                 
                                  #add all slots or so and reset state
                                  newmodel$dists= append(newmodel$dists,nd)
                                  
@@ -347,9 +392,14 @@ Lexer <- setRefClass("Lexer",
                                         printf('unknown type:%s for:%s in model%s',token,tokenName,modelName)
                                       }
                                       
-                                    }else if(state ==2){ ##get type of distrib
-                                      if(any(token==c('dnorm','dgamma','dunif') )){
-                                        print('type dnorm but could be independent of that')
+                                    }else if(state ==2 | state ==3){ ##get type of distrib, lets handle comput nodes same way
+                                      ##consider compute nodes here too
+                                      if(state==3){
+                                        printf('is computation node')
+                                      }
+                                      
+                                      if(any(token==c('dnorm','dgamma','dunif') | state ==3 )){
+                                        print('parse distribution...')
                                         #normal dist.
                                         #now get included terms and slots.
                                         #have to check if already exist with the same name !
@@ -389,11 +439,11 @@ Lexer <- setRefClass("Lexer",
                                             }
                                             tokenName = paste(name, '[', num,']', sep='' , collapse = '')
                                             printf('create:%s',tokenName)
-                                            tt = addParsedistribtuion(newmodel,tokenName,token,ret_token,str,forStates)
+                                            tt = addParsedistribtuion(newmodel,tokenName,token,ret_token,str,forStates,state==3)
                                           }
                                           ret_token = tt
                                         }else{
-                                         ret_token = addParsedistribtuion(newmodel,tokenName,token,ret_token,str)
+                                         ret_token = addParsedistribtuion(newmodel,tokenName,token,ret_token,str,isStorageNode=state==3)
                                         }
                                         # .self$model_list = append(.self$model_list,newmodel)
                                          state = 0
@@ -446,6 +496,9 @@ Lexer <- setRefClass("Lexer",
                                  }
                                  newmodel
                                },
+                               isStorageNode = function(node){
+                                 return(class(node) == 'StorageNode')
+                               },
                                getIndex=function(token){
                                  chars =strsplit(token, "")[[1]]
                                  start = 0
@@ -467,7 +520,7 @@ Lexer <- setRefClass("Lexer",
                                       'name' = paste(chars[1:(start-2)],sep='' ,collapse = '')  )
                                },
                                getDataOrNumeric =function(str){
-                                 res1 = as.numeric(str)
+                                 res1 =suppressWarnings(  as.numeric(str) )
                                  if(is.na(res1) ){
                                    res1=findData(str)
                                    if(is.null(res1)){
@@ -518,6 +571,7 @@ Lexer <- setRefClass("Lexer",
                                      }
                                      ##create all distributions
                                      cd$createDistribution()
+                                       
                                      ##and do more ?
                                    }
                                    if(cntObserved==0){
@@ -528,14 +582,52 @@ Lexer <- setRefClass("Lexer",
                                    }else{
                                      print('Multible nodes with data observed, choosing first for root')
                                    }
-                                   
                                    ###ok create model
                                    
                                    plate_root = Plate(cmodel$name) ##create root plate
-                                 ##do i have to add all to root
-                                   for(i in 1:length(rootNode)){
-                                     plate_root$addNode(rootNode[[i]]$distrib) ##add root node
+                                   ##do i have to add all to root
+                                   if( length(rootNode) > 0){
+                                     for(i in 1:length(rootNode)){
+                                       plate_root$addNode(rootNode[[i]]$distrib) ##add root node
+                                     }
                                    }
+                                   
+                                   ###reaplce storage node names
+                                   for(i in 1:length(dists)){
+                                     cd = dists[[i]]
+                                     storageName =  cd$distrib$getName()
+                                     if(class( cd$distrib) =='StorageNode'){
+                                       plate_root$addNode(cd$distrib)
+                                       strToReplace = cd$plainslots[[1]]
+                                       for(z in 1:length(dists)){
+                                         if(i==z){
+                                           next;
+                                         }
+                                         cd2 = dists[[z]]
+                                         for(x in 1:length(cd2$plainslots) ){
+                                           printf("storageName:%s ,strToReplace:%s",storageName,strToReplace)
+                                           if(hasSubstring(storageName, cd2$plainslots[x]) ){
+                                             cd2$plainslots[x] = gsub(storageName, strToReplace, cd2$plainslots[x])
+                                             printf('replacing for%s',cd2$getName())
+                                             for( r in 1:length(cd2$slotMembers[[x]] ) ){
+                                               if(cd2$slotMembers[[x]][r]==storageName ){
+                                                 printf('removing for%s',cd2$getName())
+                                                 print(cd2$slotMembers[[x]])
+                                                 cd2$slotMembers[[x]]= append(cd2$slotMembers[[x]],cd$slotMembers[[1]] )
+                                                 cd2$slotMembers[[x]] = cd2$slotMembers[[x]][-r] 
+                                                 print(cd2$slotMembers[[x]])
+                                                 
+                                               }
+                                             }
+                                           }
+                                           
+                                         }
+                                         
+                                       }   
+                                     } 
+                                   }
+                                   
+                               
                                    
                                    for(i in 1:length(dists)){
                                      print(length(dists))
@@ -566,7 +658,7 @@ Lexer <- setRefClass("Lexer",
                                         #is a constant.....
                                         modelPtr =  cmodel$findDist(cslotName)
                                         if(is.null(modelPtr)){
-                                          res = as.numeric(cslotName)
+                                          res = suppressWarnings( as.numeric(cslotName) )
                                           if(!is.na(res)){## is constant
                                             printf('Create constant dist:%s',cslotName)
                                             #modelPtr = Constant(cslotName)
@@ -579,14 +671,23 @@ Lexer <- setRefClass("Lexer",
                                           
                                         }else{
                                            printf("%s is distrib",cslotName)
-                                         }
+                                        }
+                                         lexDistPtr = modelPtr
                                          modelPtr = modelPtr$distrib
                                          
-                                         if(class(modelPtr)!='Constant'){
+                                         if(class(modelPtr)!='Constant' ){
                                            print('add dists do the plate!!!!!!')
                                            step_plate$addNode( modelPtr) 
                                            ##also set parent here for double linked list
-                                           modelPtr$addParentNode(cd$distrib)
+                                           
+                                           ##check for storage
+                                           if(isStorageNode(cd$distrib)){
+                                             printf("%s is storage node",cd$distrib$getName())
+
+                                          }else{
+                                           
+                                             modelPtr$addParentNode(cd$distrib)
+                                          }
                                          }else{
                                            if(length(cd$slotMembers[[x]])==1 ){ #only 1 constant
                                              print('only one constant')

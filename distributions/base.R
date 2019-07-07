@@ -1,5 +1,5 @@
 #distrubution
-          
+  
 DataContainer <- setRefClass("DataContainer",
                             fields = list(data='matrix',empty='logical' ),
                             methods = list(
@@ -91,6 +91,7 @@ Distribution <- setRefClass("Distribution",
                          .self$cvalue= matrix(runif(1)) ##think about initial values
                        },
                        logLike = function(){
+                         print('called base class')
                        },
                        setCurrentValue = function(v){
                          .self$cvalue = matrix(v)
@@ -104,6 +105,22 @@ Distribution <- setRefClass("Distribution",
                        )
                      )
 
+StorageNode <- setRefClass("StorageNode",
+                        fields = list(),
+                        contains = "Distribution",
+                        methods = list(
+                      #    addParentNode =function(node){
+                       #     callSuper(name)
+                        #  },
+                          compute = function(){
+                            .self$cvalue =  as.matrix(cslots[[1]]$compute())
+                            return(.self$cvalue) 
+                          },
+                          initialize = function(name) {
+                            callSuper(name)
+                          }
+                        )
+)
 Constant <- setRefClass("Constant",
                                   fields = list(),
                                   contains = "Distribution",
@@ -170,7 +187,7 @@ NormalDistribution <- setRefClass("NormalDistribution",
                                 logLike = function(){
                                   pred =   cslots[[1]]$compute()
                                   var =   cslots[[2]]$compute()
-                                #  printf("pred:%f,var:%f",pred,var)
+                                #  printf("%s pred:%f,var:%s",pred,var,getName())
                                   if(!.self$data$empty){ ##obsevred likelyhood
                                     singlelikelihoods = dnorm(.self$data$data, mean = pred, sd = var, log = T)  
                                   }else{##unobseverd take sample at current position
@@ -400,9 +417,16 @@ MCMCsampler <- setRefClass("MCMCsampler",
                              if(class(node)=='Plate'){
                                printf('node is plate:%s',node$getName())
                              }else{
-                               if(node$data$empty){
-                                 printf('node %s has no data but ok...',node$getName())
-                               }
+                               #if(node$data$empty){
+                              #   printf('node %s has no data but ok...',node$getName())
+                              # }
+                             }
+                             
+                             
+                             if(class(node)=='StorageNode'){
+                               printf("%s is storage node",node$getName())
+                               samplesList[[node$getName()]] = node$compute()
+                               next;
                              }
                              
                              ##for each slot this has to be a distibution
@@ -419,6 +443,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                if(class(cplate)=="Plate"){ #but it doenst need to be, but i could so if it wants evaluation
                                  printf('ok %s is plate!',cplate$getName())
                                  ## we have to sample for each element
+
                                  cnodes = cplate$getNodeList()
                                  if(length(cnodes)==0 ){
                                    print('empty plate !')
@@ -426,17 +451,28 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                  }
                                  
                                 printf('got %d nodes in this plate:%s',length(cnodes),cplate$getName())
+                             #   if(length(cnodes)>0){
+                            #      if(class(cnodes[[1]])=='StorageNode' ){
+                            #         cnodes = cnodes[[1]]$slots[[1]]$getNodeList()
+                            #      }
+                            #    }
+                                
+                                
                                  for(e in 1:length(cnodes)){
                                    ##ok this is the prior node finally. shoudl we check for values ? of if its constand and doesnt contain data
                                    priorNode = cnodes[[e]]
                                  
-                                   
-                                   
+
                                    ##echeck for type palte
                                    if(class(priorNode)=='Plate'){
                                      print('is plate i need to go deeper')
                                      #just call walk plate with this ?
                                      stop('not implemented yet')
+                                  #   retslist = walkPlate(cplate,node$getName())
+                                     #  printf('returning from walk with samples:%s',retslist)
+                                   #  if(length(retslist)>0){
+                                  #     samplesList = append( samplesList,retslist)
+                                  #   }
                                      next
                                    }
                                  
@@ -476,8 +512,9 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                 ##walk up one step
                                 ##only walk up with last parent
                               
-                            
+                              
                                 retslist = walkPlate(cplate,node$getName())
+                                
                               #  printf('returning from walk with samples:%s',retslist)
                                 if(length(retslist)>0){
                                   samplesList = append( samplesList,retslist)
@@ -505,14 +542,14 @@ MCMCsampler <- setRefClass("MCMCsampler",
                          },
                          #### ok now likelihood can be list, which is strange since prior already contains all information needed
                          sample=function(likelihood,prior){
-                      #     if(class(likelihood)=='list' ){
-                      #       printf('taking sample from likelhoods list:prior:%s',prior$getName() )
-                      #       for(i in 1:length(likelihood)){
-                      #         printf("likelihood:%d %s",i,likelihood[[i]]$getName())
-                      #       }
-                      #     }else{
-                       #      printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
-                      #     }
+                           if(class(likelihood)=='list' ){
+                             printf('taking sample from likelhoods list:prior:%s',prior$getName() )
+                             for(i in 1:length(likelihood)){
+                               printf("likelihood:%d %s",i,likelihood[[i]]$getName())
+                             }
+                           }else{
+                            printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
+                         }
                          ###mcmc step
                          # betanew= beta + t(rmvnorm( 1,rep(0,p),diag(p)*0.1 ))
                          # oldprob = calcProb(X%*%beta,Y,sigma)
@@ -540,7 +577,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            
                          # MH Acceptance Ratio on Log Scale
                            ratio<-(newprop)-(oldprob)
-                           printf('ratio:%f',ratio)
+                         #  printf('ratio:%f',ratio)
                            if(log(runif(1))<ratio) {
                              #accept = accept +1
                              print('accept')

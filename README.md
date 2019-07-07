@@ -62,10 +62,24 @@ colMeans(sliceSamples)
 #> 1.3266858 -0.6038927  1.3168006 -0.5858345  0.6682655  1.0420163 
 ```
 
+Storage nodes have been added. They are defined by the '=' operator. They work rather strange. They are considered constants and resolved during parsing but still added to the root plate.
+So, you can do rather unusual things.
+
+```R
+model_str= "
+model regModel{
+
+ difNode= testNode/Node
+ Node = 5
+ testNode = Node*k
+
+}
+"
+```
 
 # Todo list
 
-* "Computation nodes" to store and use computations
+
 * support for more dimensional arrays
 * add bootstrapping support
 * more distributions
