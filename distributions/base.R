@@ -50,7 +50,10 @@ Distribution <- setRefClass("Distribution",
                                    slots='list',cslots='list',parents='list' ),
                      methods = list(
                        addParentNode =function(node){
-                         .self$parents = append(.self$parents,node)
+                          ret = getParentNode(node$getName())
+                          if(is.null(ret)){
+                             .self$parents = append(.self$parents,node)
+                          }
                        },
                        isLastParentNode=function(name){
                          if(length(.self$parents)==0){
@@ -187,7 +190,7 @@ NormalDistribution <- setRefClass("NormalDistribution",
                                 logLike = function(){
                                   pred =   cslots[[1]]$compute()
                                   var =   cslots[[2]]$compute()
-                                #  printf("%s pred:%f,var:%s",pred,var,getName())
+                                  printf("%s pred, %f var, name:%s",pred,var,getName())
                                   if(!.self$data$empty){ ##obsevred likelyhood
                                     singlelikelihoods = dnorm(.self$data$data, mean = pred, sd = var, log = T)  
                                   }else{##unobseverd take sample at current position
@@ -294,6 +297,51 @@ UniformDistribution <- setRefClass("UniformDistribution",
 )
 
 
+require('extraDistr')
+
+
+MultinomialDistribution <- setRefClass("MultinomialDistribution",
+                                 fields = list(data='DataContainer'),
+                                 contains = "Distribution",
+                                 methods = list(
+                                   setData = function(data){
+                                     .self$data = DataContainer(data)
+                                   },
+                                   initialize = function(name=NULL){
+                                     callSuper(name)
+                                   },
+                                   logLike = function(){
+                                     probs = c()
+                                     for( i in 1:length(cslots)){
+                                       probs =c(probs,cslots[[i]]$compute())
+                                     }
+                                     probs = matrix(probs, nrow = length(cslots),byrow = F)
+                                    # printf("probs:%s",paste(probs,sep='',collapse = ','  ) )
+                                    # printf('dims:%s ndata %s' ,dim(probs),dim(.self$data$data))
+                                     if(!.self$data$empty){ ##obsevred likelyhood
+                                       singlelikelihoods = dcat(.self$data$data, prob=probs, log = T)  
+                                     }else{##unobseverd take sample at current position
+                                       singlelikelihoods = dcat(.self$cvalue,  prob=probs, log = T)  
+                                       #   printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
+                                     }
+                                     
+                                     sumll = sum(singlelikelihoods)
+                                     # printf("sumll:%f",sumll)
+                                     return(sumll)    
+                                   },
+                                   getBounds = function(){
+                                     #return(c(0,Inf))
+                                   },
+                                   setCurrentValue = function(v){
+                                     #if(v<0){
+                                    #   printf('Value ca not be negative for dgamma:%f',v)
+                                    #   return(FALSE)
+                                    # }
+                                     callSuper(v)
+                                   }
+                                 )
+)
+
 
 ##
 #generate some data
@@ -366,6 +414,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                        methods = list(
                          initialize = function(model) {
                            callSuper( model)
+                           ###remove doubel links
                          },
                          takeSample = function(nSamples){
                            ##ok.... we have the root, we nee to update samples now
@@ -425,7 +474,8 @@ MCMCsampler <- setRefClass("MCMCsampler",
                              
                              if(class(node)=='StorageNode'){
                                printf("%s is storage node",node$getName())
-                               samplesList[[node$getName()]] = node$compute()
+                             #  samplesList[[node$getName()]] = node$compute()
+                               node$compute()
                                next;
                              }
                              
@@ -564,13 +614,13 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            oldvalue = prior$cvalue
                            
                            repeat{
-                             newvalue =oldvalue  + rnorm(1,0,0.15)
+                             newvalue =oldvalue  + rnorm(1,0,0.2)
                              if(prior$setCurrentValue(newvalue)){
                                break
                              }
                            }
                            
-                      #    printf('new value:%f',prior$cvalue )
+                        #  printf('new value:%f',prior$cvalue )
                           newprop = getLikelihood(likelihood)+prior$logLike()
                          
                        #    printf('newprop:%f,oldprob:%f',newprop,oldprob )
@@ -619,6 +669,9 @@ SliceSampler <- setRefClass("SliceSampler",
                                  printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
                                }else{
                                  printf('taking sample from for prior:%s with a list of parents',prior$getName() )
+                                 for( i in 1:length(likelihood)){
+                                   print(likelihood[[i]]$getName())
+                                 }
                                }
                              
                                x0 = prior$cvalue
