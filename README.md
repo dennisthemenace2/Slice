@@ -62,28 +62,119 @@ colMeans(sliceSamples)
 #> 1.3266858 -0.6038927  1.3168006 -0.5858345  0.6682655  1.0420163 
 ```
 
-Storage nodes have been added. They are defined by the '=' operator. They work rather strange. They are considered constants and resolved during parsing but still added to the root plate.
-So, you can do rather unusual things.
+Storage nodes have been added. They are defined by the '=' operator. They are considered constants and resolved during parsing but still added to the root plate.
 
+More dimensional arrays are now supported, and user defined functions which allows for the implementation of an ordered logit model.
+
+
+First lets generate the data:
 ```R
-model_str= "
-model regModel{
+#Generate data:
+set.seed(1234)
+n<-200
+x<-cbind(rnorm(n), rnorm(n) ) 
+true.beta  = c(0.2,1.1)
+true.alpha = c(0.5,1.8)
+  
+mu = x%*%true.beta +rnorm(n,0,0.01)
+y = c()
 
- difNode= testNode/Node
- Node = 5
- testNode = Node*k
+for( i in 1:n){
+  probs=c()
+  p = 0
+  q = 0
+  for(k in 1:(length(true.alpha)) ){
+    tmp = 1/(1+exp(-(true.alpha[k]-mu[i]) ) )
+    p = tmp -q
+    q = tmp;
+    probs = c(probs,p)
+  }
+  p = 1-q
+  probs = c(probs,p)
+  
+  y=c(y,sample(c(1:3),probs,size = 1,replace=F))
 
 }
-"
+
+y = matrix(y,ncol=1)
 ```
+
+Next, we define the model:
+```R
+#define out sigmoid function
+sigmoid = function(x){ matrix(1/(1+exp(-x) )) }
+
+model_str = '
+model{
+    mu = x1*beta[1] + x2*beta[2]
+
+    alpha = sort(alpha0)
+
+    Q[1] =  sigmoid( alpha[1]-mu)
+    p[1] = Q[1]
+
+    for(j in 2:2){
+      Q[j] = sigmoid(alpha[j]-mu)
+      p[j] = Q[j] - Q[j-1]
+    }
+    p[3] =  1 - Q[2] 
+    
+    y ~ dcat(p[1],p[2],p[3])
+
+  # thresholds
+  for(r in 1:2){
+    alpha0[r] ~ dnorm(0,1)
+  }
+
+  for(j in 1:2){
+    beta[j] ~ dnorm(0,1)
+  }
+}
+'
+
+```
+
+
+Notice that we use user defined functions for sigmoid and the R sort function.
+Next we set the data list, parse the model, and use the MCMC sampler (Slice would be perfectly fine too).
+
+```R
+data_list = list(y=matrix(y),x1=matrix(x[,1]),x2=matrix(x[,2]) )
+
+
+lex = Lexer()
+lex$setModelString(model_str)
+lex$setModelData(data_list)
+
+lex$lexModel()
+
+root_plate = lex$parseModel()
+
+mcmcSample = MCMCsampler(root_plate)
+
+## I set initial values for an inital correct ordering, will provide a support function in the sampler class for that shortly
+#initalValues(root_plate,list('alpha0[1]'=matrix(0),'alpha0[2]'=matrix(1))
+
+samplesFromProblem = mcmcSample$takeSample(1000)
+
+colMeans(samplesFromProblem)
+#>  beta[1]   beta[2] alpha0[1] alpha0[2] 
+#>0.2085427 1.0558603 0.5668031 1.9566632 
+```
+
+The model makes use of indexing, which needs further implementation. Also the syntax needs some simplifications.
+
+Since, apprently one distribution can be part of multible slots, the slotmembers are made unique over the distribution to avoid repeated sampling. 
+
+Further, debug functionality will hopefully be provided soon, to plot and debug the model easier.
+
+
 
 # Todo list
 
-
-* support for more dimensional arrays
+* debugging functions
 * add bootstrapping support
 * more distributions
-* add support for user defined functions
 * more Sampler 
 * data section for data preprocessing ?
 * support multiple models sections and utilize results across them

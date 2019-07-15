@@ -190,7 +190,7 @@ NormalDistribution <- setRefClass("NormalDistribution",
                                 logLike = function(){
                                   pred =   cslots[[1]]$compute()
                                   var =   cslots[[2]]$compute()
-                                  printf("%s pred, %f var, name:%s",pred,var,getName())
+                                 # printf("%s pred, %f var, name:%s",pred,var,getName())
                                   if(!.self$data$empty){ ##obsevred likelyhood
                                     singlelikelihoods = dnorm(.self$data$data, mean = pred, sd = var, log = T)  
                                   }else{##unobseverd take sample at current position
@@ -199,7 +199,7 @@ NormalDistribution <- setRefClass("NormalDistribution",
                                   }
                                   
                                   sumll = sum(singlelikelihoods)
-                                 # printf("sumll:%f",sumll)
+                                #  printf("sumll:%f",sumll)
                                   return(sumll)    
                                 }#,
                                 #sample=function(position){
@@ -315,9 +315,9 @@ MultinomialDistribution <- setRefClass("MultinomialDistribution",
                                      for( i in 1:length(cslots)){
                                        probs =c(probs,cslots[[i]]$compute())
                                      }
-                                     probs = matrix(probs, nrow = length(cslots),byrow = F)
+                                     probs = matrix(probs, ncol = length(cslots),byrow = F)
                                     # printf("probs:%s",paste(probs,sep='',collapse = ','  ) )
-                                    # printf('dims:%s ndata %s' ,dim(probs),dim(.self$data$data))
+                                   #  printf('dims:%s ndata %s' ,probs,.self$data$data)
                                      if(!.self$data$empty){ ##obsevred likelyhood
                                        singlelikelihoods = dcat(.self$data$data, prob=probs, log = T)  
                                      }else{##unobseverd take sample at current position
@@ -572,7 +572,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                  ##ok we sampled platt go one level up
                                  
                                }else{
-                                 printf('is not plate:%s',cplate$getName())
+                                 printf('is not plate:%s',class(cplate) )
                                }
                              }
                            }
@@ -605,10 +605,19 @@ MCMCsampler <- setRefClass("MCMCsampler",
                          # oldprob = calcProb(X%*%beta,Y,sigma)
                          
                           
+                           
+                           ###quick hack to test
+                           ##
+                           
                            ##use this little function to consider type list 
                           oldprob = getLikelihood(likelihood)+prior$logLike() ##current position
                            
+                        #  printf('oldprob like:%f',oldprob)
                          
+                        #  ll = prior$logLike()
+                        #  printf('old prior:%f',ll)
+                        #  oldprob = oldprob+ll ##current position
+                          
                          #eta = X%*%betanew
                          #newprop = calcProb(eta,Y,sigma)
                            oldvalue = prior$cvalue
@@ -620,10 +629,14 @@ MCMCsampler <- setRefClass("MCMCsampler",
                              }
                            }
                            
-                        #  printf('new value:%f',prior$cvalue )
-                          newprop = getLikelihood(likelihood)+prior$logLike()
+                         # printf('old value: %f new value:%f',oldvalue,prior$cvalue )
+                          newprop = getLikelihood(likelihood) + prior$logLike()
+                        #  printf('like:%f',newprop)
+                        #  ll = prior$logLike()
+                        #  printf('prior:%f',ll)
+                        #  newprop = newprop + ll
                          
-                       #    printf('newprop:%f,oldprob:%f',newprop,oldprob )
+                         #  printf('newprop:%f,oldprob:%f',newprop,oldprob )
                            
                          # MH Acceptance Ratio on Log Scale
                            ratio<-(newprop)-(oldprob)

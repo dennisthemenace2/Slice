@@ -1,7 +1,5 @@
 # lexer and parser
 
-
-
 DistributionLexer <- setRefClass("DistributionLexer",
                      fields = list(name='character',plainslots='list',slotMembers='list',type='character',hasData='logical',data='matrix',
                                    distrib='Distribution'),

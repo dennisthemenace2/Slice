@@ -114,7 +114,9 @@ ComputationNodeIndex <- setRefClass("ComputationNodeIndex",
                                   methods = list(
                                     compute=function(){##do compuation return result
                                       # print(address(.self$a))
-                                      return(matrix(.self$a$compute()[as.numeric(index)]) )
+                                      val = matrix(.self$a$compute()[as.numeric(index)]) 
+                                    #  printf('values: %s returning index:%s', paste(.self$a$compute(),sep='',collapse = ',') ,as.character(index))
+                                      return(val)
                                     },
                                     initialize = function(a,idx) {
                                       .self$a=a
@@ -140,41 +142,6 @@ ComputationNodeRefList <- setRefClass("ComputationNodeRefList",
                                     },
                                     initialize = function(a) {
                                       .self$nodes=a
-                                      #print(address(.self$a))
-                                    }
-                                  )
-)
-
-ComputationNodeFunction <- setRefClass("ComputationNodeFunction",
-                                  contains='Node',
-                                  fields = list(fcnt='character',a='Node',slots='list',parser='ParseComputation'),
-                                  methods = list(
-                                    compute=function(){##do compuation return result
-                                      # print(address(.self$a))
-                                 #     return(.self$a$compute())
-                                      params = c()
-                                      for(i in 1:length(.self$slots)){
-                                     #   printf('%d class:%s',i,class(.self$slots[[i]]))
-                                        tmp = paste(.self$slots[[i]]$compute(),sep='',collapse = ',')
-                                      #  printf(tmp)
-                                        params =c(params,paste('c(',tmp,')',sep = '',collapse = '') )
-                                      }
-                                      
-                                      params = paste(params,sep='',collapse = ',')
-                                      fnCall = paste(fcnt,'(',params,')',sep='',collapse = '')
-                                     # printf('function Call:%s',fnCall)
-                                      return(eval(base::parse(text=fnCall) ) )
-                                    },
-                                    setText= function(txt){
-                                   #   printf('settext:%s',txt)
-                                      sl = strsplit(txt,',')[[1]]
-                                      for(i in 1:length(sl)){
-                                        .self$slots[[i]]=parser$parse(sl[i])  
-                                      }
-                                    },
-                                    initialize = function(name,parser) {
-                                      .self$fcnt =name
-                                      .self$parser=parser
                                       #print(address(.self$a))
                                     }
                                   )
@@ -377,6 +344,43 @@ ParseComputation <- setRefClass("ParseComputation",
                         }
                        
                     )
+)
+
+
+
+ComputationNodeFunction <- setRefClass("ComputationNodeFunction",
+                                       contains='Node',
+                                       fields = list(fcnt='character',a='Node',slots='list',parser='ParseComputation'),
+                                       methods = list(
+                                         compute=function(){##do compuation return result
+                                           # print(address(.self$a))
+                                           #     return(.self$a$compute())
+                                           params = c()
+                                           for(i in 1:length(.self$slots)){
+                                             #   printf('%d class:%s',i,class(.self$slots[[i]]))
+                                             tmp = paste(.self$slots[[i]]$compute(),sep='',collapse = ',')
+                                             #  printf(tmp)
+                                             params =c(params,paste('c(',tmp,')',sep = '',collapse = '') )
+                                           }
+                                           
+                                           params = paste(params,sep='',collapse = ',')
+                                           fnCall = paste(fcnt,'(',params,')',sep='',collapse = '')
+                                           # printf('function Call:%s',fnCall)
+                                           return(eval(base::parse(text=fnCall) ) )
+                                         },
+                                         setText= function(txt){
+                                           #   printf('settext:%s',txt)
+                                           sl = strsplit(txt,',')[[1]]
+                                           for(i in 1:length(sl)){
+                                             .self$slots[[i]]=parser$parse(sl[i])  
+                                           }
+                                         },
+                                         initialize = function(name,parser) {
+                                           .self$fcnt =name
+                                           .self$parser=parser
+                                           #print(address(.self$a))
+                                         }
+                                       )
 )
 
 text = "3+1*5*2"
