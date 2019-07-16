@@ -1,6 +1,25 @@
 Node <- setRefClass("Node",
                     methods = list(
-                      compute=function(){print("Base class called")}
+                      compute=function(){print("Base class called")},
+                      getSlotsList = function(txt){
+                        allChars = strsplit(txt,'')[[1]]
+                        slots = c()
+                        start = 1
+                        braketOpen = 0
+                        
+                        for(i in 1:length(allChars)){
+                          if(allChars[i]==',' & braketOpen==0){ ##indicated slot 
+                            slots = append(slots,substr(txt, start,i-1) )
+                            start = i+1                
+                          }else if(allChars[i]=='(' | allChars[i]=='['){
+                            braketOpen = braketOpen+1
+                          }else if(allChars[i]==')' | allChars[i]==']'){
+                            braketOpen = braketOpen-1
+                          }
+                        }
+                        slots = append(slots,substr(txt, start,length(allChars)) )
+                        return(slots)
+                      }
                     )
 )
 
@@ -110,17 +129,29 @@ ComputationNodeRef <- setRefClass("ComputationNodeRef",
 
 ComputationNodeIndex <- setRefClass("ComputationNodeIndex",
                                   contains='Node',
-                                  fields = list(a='Node',index='character'),
+                                  fields = list(a='Node',slots='list'),
                                   methods = list(
                                     compute=function(){##do compuation return result
                                       # print(address(.self$a))
-                                      val = matrix(.self$a$compute()[as.numeric(index)]) 
+                                    #  val = matrix(.self$a$compute()[as.numeric(index)]) 
                                     #  printf('values: %s returning index:%s', paste(.self$a$compute(),sep='',collapse = ',') ,as.character(index))
+                                      if(length(.self$slots)==0){
+                                        printf('thre are no indexes')
+                                      }
+                                      idx = c()
+                                      for(i in 1:length(slots)){
+                                        idx = c(idx, slots[[i]]$compute())
+                                      }
+                                      val = matrix(.self$a$compute()[as.numeric(idx)]) 
                                       return(val)
                                     },
-                                    initialize = function(a,idx) {
+                                    initialize = function(a,idx,parser) {
                                       .self$a=a
-                                      .self$index = idx ##could be equations
+                                      sl = getSlotsList(idx)
+                                      for(i in 1:length(sl)){
+                                        .self$slots[[i]]=parser$parse(sl[i])  
+                                      }
+                                     # .self$index = idx ##could be equations
                                       #print(address(.self$a))
                                     }
                                   )
@@ -176,15 +207,14 @@ ParseComputation <- setRefClass("ParseComputation",
                         res = lexer$findData(l1)
                         if(!is.null(res)){
                           printf('is data node:%s',l1)
-                          
                           return(ComputationNodeValue(res,l1))
                         }
                         ##check dist
-                        if(length(lexer$model_list) >0){
+                        if(length(lexer$model_list)>0){
+                          printf('modellist length:%d',length(lexer$model_list))
                           res = lexer$model_list[[modelIdx]]$findDist(l1)
                           if(!is.null(res)){
                             printf('is distribution:%s',l1)
-                            
                             return( ComputationNodeRef(res$distrib))
                           }
                           
@@ -216,7 +246,11 @@ ParseComputation <- setRefClass("ParseComputation",
                          }
                        }
                         
-                        printf('Cannot resolve node:%s for model:%s',l1,lexer$model_list[[modelIdx]]$name)
+                        if(length(lexer$model_list)>=modelIdx){
+                          printf('Cannot resolve node:%s for model:%s',l1,lexer$model_list[[modelIdx]]$name)
+                        }else{
+                          printf('Cannot resolve node:%s',l1)
+                        }
                         
                       },
                       createOpNode=function(op){
@@ -272,9 +306,13 @@ ParseComputation <- setRefClass("ParseComputation",
                             if(cnt!=0){
                               printf('Cant find closing braket parsing:%s',text)
                             }
-                            #printf('parse this:%s',substr(text,pos,end-1))
+                            printf('parse this:%s',substr(text,pos,end-1))
+                          #  printf('refer to all cahrs parse this:%s',paste(allChars[pos:(end-1)],sep='',collapse = '' ))
+                            
+                           # subParse =  paste(allChars[pos:(end-1) ],sep='',collapse = '' )
+                            
                             if(class(p1)=='ComputationNodeFunction'){
-                              p1$setText(substr(text,pos,end-1))
+                              p1$setText(substr(text,pos,end-1) )
                             }else{
                               p1 = parse(substr(text,pos,end-1))  
                             }
@@ -292,6 +330,17 @@ ParseComputation <- setRefClass("ParseComputation",
                           chars = strsplit( token,'')[[1]]
                           if(chars[1]=='[' ){
                             printf('its some index')
+                            ###have to check last one
+                            while( chars[length(chars)]!=']' ){
+                              printf('please removes spaces..need to grep till end...')
+                              tok=  lexer$getNextToken(allChars,pos)
+                              token = tok$str
+                              pos = tok$pos
+                              printf('token:%s',token)
+                              chars = append(chars, strsplit( token,'')[[1]])
+                              
+                            }
+                            
                             if(!is.null(p1) ){
                               printf('we can apply it to p1')
                               if(class(p1)=='ComputationNodeFunction'){
@@ -299,8 +348,10 @@ ParseComputation <- setRefClass("ParseComputation",
                               }
                               p1= ComputationNodeIndex(p1,
                                                    paste(chars[2:(length(chars)-1)],sep='',collapse = '' )
-                                                  )
+                                                 ,.self)
                               next;
+                            }else{
+                              printf('p1 is empty we dont know where to apply index[] !')
                             }
                             
                           }
@@ -369,8 +420,10 @@ ComputationNodeFunction <- setRefClass("ComputationNodeFunction",
                                            return(eval(base::parse(text=fnCall) ) )
                                          },
                                          setText= function(txt){
-                                           #   printf('settext:%s',txt)
-                                           sl = strsplit(txt,',')[[1]]
+                                           printf('settext:%s',txt)
+                                           #sl = strsplit(txt,',')[[1]]###
+                                           ###needs a function that realiable extractrs the slots
+                                           sl = getSlotsList(txt)
                                            for(i in 1:length(sl)){
                                              .self$slots[[i]]=parser$parse(sl[i])  
                                            }
@@ -396,7 +449,7 @@ text = "1*4+2+1*2*1+10"
 res = pc$parse(text)
 res$compute()
 
-text = "c(1,2,3)[1]*2"
+text = "sqrt(2)[c(1) ,1]"
 res = pc$parse(text)
 res$compute()
 
