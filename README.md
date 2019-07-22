@@ -10,6 +10,7 @@ It is supposed to be a highly flexible inference engine, that allows to utilize 
 
 
 
+
 Model similar to the BUGS language can be parsed to create a tree:
 ```R
 model_str= "
@@ -162,11 +163,56 @@ colMeans(samplesFromProblem)
 #>0.2085427 1.0558603 0.5668031 1.9566632 
 ```
 
-The model makes use of indexing, which needs further implementation. Also the syntax needs some simplifications.
 
-Since, apprently one distribution can be part of multible slots, the slotmembers are made unique over the distribution to avoid repeated sampling. 
+The model makes use of indexing, which needs further implementation. Also, the syntax needs some simplifications.
 
-Further, debug functionality will hopefully be provided soon, to plot and debug the model easier.
+Since apparently, one distribution can be part of multiple slots, the slot members are made unique over the distribution to avoid repeated sampling. 
+
+Further, debugging functionality will hopefully be provided soon, to plot and debug the model easier.
+
+
+## Recurrent Bayesian Neuronal Networks.
+
+
+Yes, Bayesian RNN is interesting and would be a nice direction to steer the project towards
+
+So, it took me all weekend, to make a simple RNN structure work in Slice. Consider the simple Elman or Vanilla RNN structure.
+As demonstrated in the paper "Bayesian Recurrent Neural Network Models for Forecasting and Quantifying Uncertainty in Spatial-Temporal Data" [( McDermott and Wikle, 2018)](https://arxiv.org/pdf/1711.00636.pdf) this model can be estimated using traditional sampling, although some tricks are included.
+
+
+Here, you have the basic model definition:
+
+```R
+model_str = '
+model elman{
+W[3,3] ~ dnorm(0,1)
+U[3,1] ~ dnorm(0,1)
+V[1,3] ~ dnorm(0,1)
+mu ~ dnorm(0,1)
+
+B[3,1] ~ dnorm(0,1)
+
+for( e in 1:nexamples){
+  h_t[e,1] = 0 
+  for( i in 1:ncol(X[e] ) ){
+    h_t[e,i+1] =  W * h_t[e,i] +  U* t( X[e,i] ) 
+  }
+ res[e] = ( mu + (V * h_t[e,seqLength[e]+1] ) ) * B
+}
+ Y ~dnorm( res  , 1 )
+}
+'
+```
+Regarding the technical implementation, notice, that variables like "res", "W", or "V" are used by there names but defined differently.
+So, this will lead to the creation of ComputationHelperNodes during parsing which links to the StorageNodes or Distribution.
+This means, that StorageNodes can not be pruned but they dont need to be computed since the HelperNodes do this. 
+Futher column Vectors are the default for vectors now.
+
+Concerning the model, well, you can see that a lot has been done in terms of supported syntax. The model is very slow, even for redicolous little examples.
+
+The model is not done, yet, but it already spawns a lot of interesting questions. How to measure convergence, correlation, and in general how to notice that my model is not mixing well. 
+
+In the testRnn.R, you will find the working example.
 
 
 

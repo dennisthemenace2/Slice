@@ -53,7 +53,17 @@ ComputationNodeAdd <- setRefClass("ComputationNodeAdd",
                                   methods = list(
                                     compute=function(){##do compuation return result
                                       res = callSuper()
-                                      return(as.vector(res$a) + as.vector(res$b) )
+                                      #return(as.vector(res$a) + as.vector(res$b) )
+                                     # printf('dims for add: %dx%d %dx%d',
+                                      #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
+                                      if(ncol(res$a)==1 & nrow(res$a)==1){
+                                        return(as.numeric(res$a) + res$b)
+                                      }
+                                      if(ncol(res$b)==1 & nrow(res$b)==1){
+                                        return(res$a + as.numeric(res$b) )
+                                      }
+                                      
+                                      return(res$a + res$b )
                                     }
                                   )
 )
@@ -64,7 +74,10 @@ ComputationNodeSub <- setRefClass("ComputationNodeSub",
                                   methods = list(
                                     compute=function(){##do compuation return result
                                       res = callSuper()
-                                      return(as.vector(res$a) - as.vector(res$b) )
+                                #      printf('dims: %dx%d %dx%d',
+                                 #            ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
+                                      return(res$a - res$b )
+                                     # return(as.vector(res$a) - as.vector(res$b) )
                                     }
                                   )
 )
@@ -75,7 +88,10 @@ ComputationNodeDiv <- setRefClass("ComputationNodeDiv",
                                   methods = list(
                                     compute=function(){##do compuation return result
                                       res = callSuper()
-                                      return(as.vector(res$a) / as.vector(res$b) )
+                                     # printf('dims: %dx%d %dx%d',
+                                      #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
+                                      return(res$a / res$b )
+                                      #return(as.vector(res$a) / as.vector(res$b) )
                                     }
                                   )
 )
@@ -85,7 +101,24 @@ ComputationNodeMultiply <- setRefClass("ComputationNodeMultiply",
                                        methods = list(
                                          compute=function(){##do compuation return result
                                            res = callSuper()
-                                         #  print(res)
+                                          # if(is.numeric(res$b)){
+                                          #   printf('numeric b:%f',res$b)
+                                          # }
+                                          # printf('a:%s b:%s',as.character(class(res$a)) ,as.character( class(res$b)) )
+                                          # printf('dims: %dx%d %dx%d',
+                                           #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
+                                           
+                                           if(nrow(res$a)!= ncol(res$b) ){
+                                            # printf('this will not be valid: %dx%d %dx%d',
+                                             #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
+                                            # printf('%f',res$b)
+                                             if( ncol(res$b)==1 & nrow(res$b)==1 ){
+                                               return(res$a * as.numeric( res$b) )
+                                             }
+                                             if( ncol(res$a)==1 & nrow(res$a)==1 ){
+                                               return(as.numeric(res$a) *  res$b )
+                                             }
+                                           }
                                            return(res$a %*% res$b)
                                          }
                                        )
@@ -118,6 +151,7 @@ ComputationNodeRef <- setRefClass("ComputationNodeRef",
                                     methods = list(
                                       compute=function(){##do compuation return result
                                       # print(address(.self$a))
+                                      #  printf('node:%s',.self$a$getName())
                                         return(.self$a$compute())
                                       },
                                       initialize = function(a) {
@@ -251,7 +285,7 @@ ParseComputation <- setRefClass("ParseComputation",
                         }else{
                           printf('Cannot resolve node:%s',l1)
                         }
-                        
+                        return(NULL)
                       },
                       createOpNode=function(op){
                         printf('create OP node:%s',op)
@@ -324,6 +358,10 @@ ParseComputation <- setRefClass("ParseComputation",
                           
                           if(is.null(p1)){
                             p1=createNode(token)
+                            if(is.null(p1)){
+                              printf('node could not be create i better leave!')
+                              return(NULL)
+                            }
                             next;
                           }
                           
@@ -407,8 +445,22 @@ ComputationNodeFunction <- setRefClass("ComputationNodeFunction",
                                            # print(address(.self$a))
                                            #     return(.self$a$compute())
                                            params = c()
+                                           if(length(.self$slots)==0 ){
+                                             printf('no computation to be done')
+                                             return(NULL)
+                                           }
+                                           if(length(.self$slots)==1){
+                                             if(class(.self$slots[[1]])=='ComputationNodeValue'){
+                                               fcn = eval(base::parse(text=fcnt) )
+                                           #    printf(class(.self$slots[[1]]))
+                                            #   printf('call:%s with class %s',fcnt ,class(.self$slots[[1]]$compute() ))
+                                               
+                                               return(fcn(.self$slots[[1]]$compute()) )
+                                             }
+                                           }
+                                           
                                            for(i in 1:length(.self$slots)){
-                                             #   printf('%d class:%s',i,class(.self$slots[[i]]))
+                                            #    printf('%d class:%s',i,class(.self$slots[[i]]))
                                              tmp = paste(.self$slots[[i]]$compute(),sep='',collapse = ',')
                                              #  printf(tmp)
                                              params =c(params,paste('c(',tmp,')',sep = '',collapse = '') )
@@ -416,7 +468,7 @@ ComputationNodeFunction <- setRefClass("ComputationNodeFunction",
                                            
                                            params = paste(params,sep='',collapse = ',')
                                            fnCall = paste(fcnt,'(',params,')',sep='',collapse = '')
-                                           # printf('function Call:%s',fnCall)
+                                          #  printf('function Call:%s',fnCall)
                                            return(eval(base::parse(text=fnCall) ) )
                                          },
                                          setText= function(txt){

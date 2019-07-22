@@ -29,7 +29,20 @@ Plate <- setRefClass("Plate",
                                 
                               },
                               addNode=function(node){
+                                if(!contains(node)){
                                 .self$nodes =append(.self$nodes, node)
+                                }
+                              },
+                              contains = function(node){
+                                if(length(.self$nodes)==0){
+                                  return(FALSE)
+                                }
+                                for(i in 1:length(.self$nodes)){
+                                  if(.self$nodes[[i]]$getName() == node$getName()){
+                                    return(TRUE)
+                                  }
+                                }
+                                return(FALSE)
                               },
                               getNodeList=function(){
                                 return(nodes)
@@ -107,6 +120,103 @@ Distribution <- setRefClass("Distribution",
                        
                        )
                      )
+
+
+###
+ComputationHelperNode <- setRefClass("ComputationHelperNode",
+                           fields = list(matrixType='character',ncol='numeric',nrow='numeric'),
+                           contains = "Distribution",
+                           methods = list(
+                             compute = function(){
+                               if(length(cslots)==0){
+                                 printf('no cslosts set !')
+                                 return(NULL)
+                               }
+                               values = c()
+                               for(i in 1:length(cslots)){
+                                 values = c(values, cslots[[i]]$compute())
+                               }
+                               if(matrixType=='col'){
+                                 .self$cvalue = matrix(values, ncol = 1)
+                               }else if(matrixType=='row'){
+                                 .self$cvalue = matrix(values, nrow = 1)
+                               }else if(matrixType=='matrix'){
+                                 .self$cvalue = matrix(values, ncol=.self$ncol,nrow=.self$nrow,byrow = T) ##unsure of byrow value
+                               }
+                              
+                               return(.self$cvalue) 
+                             },
+                             initialize = function(name,distList) {
+                               callSuper(name)
+                            #   addParentNode(parent$distrib)
+                               if(length(distList)==0){
+                                 printf('passed no list!')
+                                 return(.self)
+                               } 
+                               ##figur out from name if row col or matrix
+                               .self$matrixType = 'col' #setDefault
+                               fullNames = c()
+                               #addSlotMem = c()
+                               printf('listClass:%s',class(distList[[1]]) )
+                               if(class(distList[[1]]) == 'DistributionLexer' ){
+                                 printf('distribution lexer')
+                                 for(i in 1:length(distList)){
+                                   cd = distList[[i]]
+                                   .self$cslots[[i]] = cd$distrib ##set distibution
+                                   fullNames = c(fullNames, cd$name)
+                                   #we could also take care of slot members
+                                  # addSlotMem = c(addSlotMem, unlist(cd$slotMembers) ) ## just take all ??
+                                   printf('slot is node:%s',class(cd$distrib))
+                                   ## i assume its storage node might we wrong
+                                 }
+                                # addSlotMem = unique(addSlotMem) ## okk add them
+                                 
+                               }
+                               
+                               ##get type.. now
+                               lex = Lexer()
+                               dimMatrix = NULL
+                               for(i in 1:length(fullNames)){
+                                 ret = lex$getIndex(fullNames[i])
+                                 if(!is.null(ret)){
+                                   if(is.null(dimMatrix)){
+                                     dimMatrix = matrix(as.numeric(unlist(ret$index)) , ncol=length(ret$index))
+                                   }else{
+                                     dimMatrix = rbind(dimMatrix, as.numeric(unlist(ret$index)))
+                                   }
+                                 }
+                               }
+                               if(!is.null(dimMatrix) ){
+                                 if(ncol(dimMatrix)>2){
+                                   
+                                 }else if(ncol(dimMatrix)==2){
+                                   dim1 = unique(dimMatrix[,1])
+                                   dim2 = unique(dimMatrix[,2])
+                                   if(length(dim1)==1){
+                                     if(length(dim2)>1){
+                                       .self$matrixType = 'row'
+                                     }
+                                   }else{
+                                     if( length(dim2)>1 ){
+                                       ##might be matrix
+                                       if(length(distList) > length(dim2)){
+                                         .self$matrixType = 'matrix'
+                                         .self$ncol = length(dim2) 
+                                         .self$nrow = length(dim1)
+                                         printf('set matrix type for:%s',.self$getName())
+                                       }
+                                     }
+                                   }
+                                 }else{
+                                   printf('on dimension we use col vector')
+                                 }
+                                 printf('helperNode %s id type %s ',.self$getName(),.self$matrixType)
+                               }###end dim matrix check 
+                               
+                             }
+                           )
+)
+##
 
 StorageNode <- setRefClass("StorageNode",
                         fields = list(),
@@ -643,9 +753,9 @@ MCMCsampler <- setRefClass("MCMCsampler",
                          #  printf('ratio:%f',ratio)
                            if(log(runif(1))<ratio) {
                              #accept = accept +1
-                             print('accept')
+                             #print('accept')
                            }else{
-                             print('reject')
+                            # print('reject')
                              prior$cvalue = oldvalue ##set back !
                            }
                             prior$cvalue
