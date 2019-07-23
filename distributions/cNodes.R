@@ -76,6 +76,13 @@ ComputationNodeSub <- setRefClass("ComputationNodeSub",
                                       res = callSuper()
                                 #      printf('dims: %dx%d %dx%d',
                                  #            ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
+                                      if(ncol(res$a)==1 & nrow(res$a)==1){
+                                        return(as.numeric(res$a) - res$b)
+                                      }
+                                      if(ncol(res$b)==1 & nrow(res$b)==1){
+                                        return(res$a - as.numeric(res$b) )
+                                      }
+                                      
                                       return(res$a - res$b )
                                      # return(as.vector(res$a) - as.vector(res$b) )
                                     }
@@ -90,6 +97,13 @@ ComputationNodeDiv <- setRefClass("ComputationNodeDiv",
                                       res = callSuper()
                                      # printf('dims: %dx%d %dx%d',
                                       #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
+                                      if(ncol(res$a)==1 & nrow(res$a)==1){
+                                        return(as.numeric(res$a) / res$b)
+                                      }
+                                      if(ncol(res$b)==1 & nrow(res$b)==1){
+                                        return(res$a / as.numeric(res$b) )
+                                      }
+                                      
                                       return(res$a / res$b )
                                       #return(as.vector(res$a) / as.vector(res$b) )
                                     }
@@ -120,6 +134,18 @@ ComputationNodeMultiply <- setRefClass("ComputationNodeMultiply",
                                              }
                                            }
                                            return(res$a %*% res$b)
+                                         }
+                                       )
+)
+
+
+ComputationNodeMultiplyElement <- setRefClass("ComputationNodeMultiplyElement",
+                                       contains='ComputationNode',
+                                       fields = list(),
+                                       methods = list(
+                                         compute=function(){##do compuation return result
+                                           res = callSuper()
+                                           return(res$a * res$b)
                                          }
                                        )
 )
@@ -297,6 +323,8 @@ ParseComputation <- setRefClass("ParseComputation",
                           return(ComputationNodeMultiply())
                         }else if(op=='/'){
                           return(ComputationNodeDiv())
+                        }else if(op=='%.%'){
+                          return(ComputationNodeMultiplyElement())
                         }else{
                           printf('unkonwn op:%s',op)
                         }
@@ -320,6 +348,23 @@ ParseComputation <- setRefClass("ParseComputation",
                           if(nchar(token) ==0){
                             next;
                           }
+                          
+                        #  if(token=='%'){ #special stuff
+                        #    newToken = token
+                        #    while(nchar(token)>0 ){
+                        #      tok=  lexer$getNextToken(allChars,pos)
+                        #      token = tok$str
+                        #      pos = tok$pos
+                        #      printf('token:%s',token)
+                        #      newToken =paste(newToken, token, sep="",collapse = '' )
+                        #      if(token=='%'){
+                        #        break
+                        #      }
+                        #    }
+                        #    token = newToken
+                        #  }
+                          
+                          
                           if(token=='('){
                           #  printf("parse this first:%s",allChars)
                             cnt = 1
@@ -357,6 +402,13 @@ ParseComputation <- setRefClass("ParseComputation",
                           
                           
                           if(is.null(p1)){
+                            if(tok$type == 'DELIM'){
+                              ##lefts hope is some minus
+                              tok=  lexer$getNextToken(allChars,pos)
+                              token = paste(token,tok$str,sep='',collapse = '')
+                              pos = tok$pos
+                              
+                            }
                             p1=createNode(token)
                             if(is.null(p1)){
                               printf('node could not be create i better leave!')
@@ -396,7 +448,7 @@ ParseComputation <- setRefClass("ParseComputation",
                           
                          # if(nchar(op)==0){
                           #check for dominance
-                          if( any(op==c('*','/') ) & any(token==c('+','-') ) ){
+                          if( any(op==c('*','/' , '%.%') ) & any(token==c('+','-') ) ){
                             ## number has to be in node and this node and the new node has to be root
                             lastNode$b= p1#createNode(p1)
                             newnode  = createOpNode(token)
@@ -442,33 +494,39 @@ ComputationNodeFunction <- setRefClass("ComputationNodeFunction",
                                        fields = list(fcnt='character',a='Node',slots='list',parser='ParseComputation'),
                                        methods = list(
                                          compute=function(){##do compuation return result
-                                           # print(address(.self$a))
-                                           #     return(.self$a$compute())
+                                           # printf('call some function:%s with %d slots class:'
+                                          #         ,fcnt , length(.self$slots))
+                                          
                                            params = c()
                                            if(length(.self$slots)==0 ){
                                              printf('no computation to be done')
                                              return(NULL)
                                            }
                                            if(length(.self$slots)==1){
-                                             if(class(.self$slots[[1]])=='ComputationNodeValue'){
+                                       #         printf("has only 1 slot:%s",  class(.self$slots[[1]]))
+                                        #     if(class(.self$slots[[1]])=='ComputationNodeValue' ||
+                                         #       class(.self$slots[[1]])=='ComputationHelperNode'||
+                                          #      class(.self$slots[[1]])== 'ComputationNodeRef'){
                                                fcn = eval(base::parse(text=fcnt) )
-                                           #    printf(class(.self$slots[[1]]))
-                                            #   printf('call:%s with class %s',fcnt ,class(.self$slots[[1]]$compute() ))
+                                        #       printf(class(.self$slots[[1]]))
+                                            # printf('call:%s with class %s ncol:%d',fcnt ,class(.self$slots[[1]]$compute()),ncol(.self$slots[[1]]$compute()) )
                                                
                                                return(fcn(.self$slots[[1]]$compute()) )
-                                             }
+                                           #  }
                                            }
                                            
+                                           
                                            for(i in 1:length(.self$slots)){
-                                            #    printf('%d class:%s',i,class(.self$slots[[i]]))
-                                             tmp = paste(.self$slots[[i]]$compute(),sep='',collapse = ',')
+                                         #    printf('%d class:%s',i,class(.self$slots[[i]]))
+                                       #      tmp = paste(.self$slots[[i]]$compute(),sep='',collapse = ',')
                                              #  printf(tmp)
-                                             params =c(params,paste('c(',tmp,')',sep = '',collapse = '') )
+                                        #     params =c(params,paste('c(',tmp,')',sep = '',collapse = '') )
+                                             params = c(params, paste('.self$slots[[',i, ']]$compute()',sep='',collapse = '' ))  
                                            }
                                            
                                            params = paste(params,sep='',collapse = ',')
                                            fnCall = paste(fcnt,'(',params,')',sep='',collapse = '')
-                                          #  printf('function Call:%s',fnCall)
+                                       #     printf('function Call:%s',fnCall)
                                            return(eval(base::parse(text=fnCall) ) )
                                          },
                                          setText= function(txt){
@@ -493,15 +551,15 @@ pc = ParseComputation()
 res = pc$parse(text)
 res$compute()
 
-text = "4*1+3"
-res = pc$parse(text)
-res$compute()
-
 text = "1*4+2+1*2*1+10"
 res = pc$parse(text)
 res$compute()
 
 text = "sqrt(2)[c(1) ,1]"
+res = pc$parse(text)
+res$compute()
+
+text = "-4%.%1"
 res = pc$parse(text)
 res$compute()
 

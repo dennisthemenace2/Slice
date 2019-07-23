@@ -108,9 +108,6 @@ sigmoid = function(x){ matrix(1/(1+exp(-x) )) }
 model_str = '
 model{
     mu = x1*beta[1] + x2*beta[2]
-
-    alpha = sort(alpha0)
-
     Q[1] =  sigmoid( alpha[1]-mu)
     p[1] = Q[1]
 
@@ -119,17 +116,13 @@ model{
       p[j] = Q[j] - Q[j-1]
     }
     p[3] =  1 - Q[2] 
-    
-    y ~ dcat(p[1],p[2],p[3])
+    y ~ dcat(p)
 
-  # thresholds
-  for(r in 1:2){
-    alpha0[r] ~ dnorm(0,1)
-  }
-
-  for(j in 1:2){
-    beta[j] ~ dnorm(0,1)
-  }
+  ## priors over thresholds
+  alpha0[2] ~ dnorm(0,1)
+  
+  alpha = sort(alpha0)  
+  beta[2] ~ dnorm(0,1)
 }
 '
 
@@ -153,10 +146,8 @@ root_plate = lex$parseModel()
 
 mcmcSample = MCMCsampler(root_plate)
 
-## I set initial values for an inital correct ordering, will provide a support function in the sampler class for that shortly
-#initalValues(root_plate,list('alpha0[1]'=matrix(0),'alpha0[2]'=matrix(1))
+samplesFromProblem = mcmcSample$takeSample(1000,initialValues =list('alpha0[1]'=matrix(0),'alpha0[2]'=matrix(1) ))
 
-samplesFromProblem = mcmcSample$takeSample(1000)
 
 colMeans(samplesFromProblem)
 #>  beta[1]   beta[2] alpha0[1] alpha0[2] 
@@ -185,17 +176,24 @@ Here, you have the basic model definition:
 ```R
 model_str = '
 model elman{
-W[3,3] ~ dnorm(0,1)
+WL[3,3] ~ dtruncnorm(-1,1,0,1)
+WU[3,3] ~ dtruncnorm(-1,1,0,0.1)
+
 U[3,1] ~ dnorm(0,1)
 V[1,3] ~ dnorm(0,1)
 mu ~ dnorm(0,1)
+gamma[3,3] ~ dbern(0.5)
+
+delta ~ dunif(0,1)
+
+W = gamma %.% WL + (1-gamma) %.% WU 
 
 B[3,1] ~ dnorm(0,1)
 
 for( e in 1:nexamples){
   h_t[e,1] = 0 
   for( i in 1:ncol(X[e] ) ){
-    h_t[e,i+1] =  W * h_t[e,i] +  U* t( X[e,i] ) 
+    h_t[e,i+1] =   tanh( delta / largestEigenValue(W ) * (W * h_t[e,i]) +  U* t( X[e,i] ) )
   }
  res[e] = ( mu + (V * h_t[e,seqLength[e]+1] ) ) * B
 }
@@ -206,7 +204,7 @@ for( e in 1:nexamples){
 Regarding the technical implementation, notice, that variables like "res", "W", or "V" are used by there names but defined differently.
 So, this will lead to the creation of ComputationHelperNodes during parsing which links to the StorageNodes or Distribution.
 This means, that StorageNodes can not be pruned but they dont need to be computed since the HelperNodes do this. 
-Futher column Vectors are the default for vectors now.
+Futher column Vectors are the default for vectors now. The operator %.% does element wise multiplication, might be changed to make it more agree with R.
 
 Concerning the model, well, you can see that a lot has been done in terms of supported syntax. The model is very slow, even for redicolous little examples.
 

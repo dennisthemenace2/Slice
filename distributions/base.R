@@ -60,7 +60,7 @@ Plate <- setRefClass("Plate",
 Distribution <- setRefClass("Distribution",
                             contains='Node',
                      fields = list(dist_name='character',cvalue = 'matrix',
-                                   slots='list',cslots='list',parents='list' ),
+                                   slots='list',cslots='list',parents='list',type='character' ),
                      methods = list(
                        addParentNode =function(node){
                           ret = getParentNode(node$getName())
@@ -98,6 +98,7 @@ Distribution <- setRefClass("Distribution",
                        initialize = function(name=NULL) {
                          .self$slots = list()
                          .self$cslots = list()
+                         .self$type = 'continuous'
                          
                          if(is.null(name)){
                            .self$dist_name ='NoName'
@@ -159,14 +160,15 @@ ComputationHelperNode <- setRefClass("ComputationHelperNode",
                                #addSlotMem = c()
                                printf('listClass:%s',class(distList[[1]]) )
                                if(class(distList[[1]]) == 'DistributionLexer' ){
-                                 printf('distribution lexer')
+                                # printf('distribution lexer')
                                  for(i in 1:length(distList)){
                                    cd = distList[[i]]
                                    .self$cslots[[i]] = cd$distrib ##set distibution
                                    fullNames = c(fullNames, cd$name)
+                                #   print(fullNames)
                                    #we could also take care of slot members
                                   # addSlotMem = c(addSlotMem, unlist(cd$slotMembers) ) ## just take all ??
-                                   printf('slot is node:%s',class(cd$distrib))
+                                 #  printf('slot is node:%s',class(cd$distrib))
                                    ## i assume its storage node might we wrong
                                  }
                                 # addSlotMem = unique(addSlotMem) ## okk add them
@@ -188,10 +190,12 @@ ComputationHelperNode <- setRefClass("ComputationHelperNode",
                                }
                                if(!is.null(dimMatrix) ){
                                  if(ncol(dimMatrix)>2){
-                                   
+                                   printf('more than 2 dimensions not supported')
                                  }else if(ncol(dimMatrix)==2){
+                                   
                                    dim1 = unique(dimMatrix[,1])
                                    dim2 = unique(dimMatrix[,2])
+                                   printf('dims1 %s dims2 $s', dim1, dim2)
                                    if(length(dim1)==1){
                                      if(length(dim2)>1){
                                        .self$matrixType = 'row'
@@ -222,12 +226,12 @@ StorageNode <- setRefClass("StorageNode",
                         fields = list(),
                         contains = "Distribution",
                         methods = list(
-                      #    addParentNode =function(node){
-                       #     callSuper(name)
-                        #  },
                           compute = function(){
-                            .self$cvalue =  as.matrix(cslots[[1]]$compute())
-                            return(.self$cvalue) 
+                            res = .self$cslots[[1]]$compute()
+                          #  print(ncol(res))
+                            .self$cvalue =  res
+                          #  printf('cvalue cols :%d',ncol(.self$cvalue))
+                            return(res) 
                           },
                           initialize = function(name) {
                             callSuper(name)
@@ -252,6 +256,7 @@ Constant <- setRefClass("Constant",
                                         value = as.matrix(as.numeric(value) ,ncol=1)
                                       }
                                       .self$cvalue = value
+                                      .self$type = 'constant'
                                     },
                                     logLike = function(){
                                       return(log(cvalue)) 
@@ -321,7 +326,64 @@ NormalDistribution <- setRefClass("NormalDistribution",
                               )
                        )
 
+###
 
+TruncNormalDistribution <- setRefClass("TruncNormalDistribution",
+                                  fields = list(data='DataContainer'),
+                                  contains = "Distribution",
+                                  methods = list(
+                                    setData = function(data){
+                                      .self$data = DataContainer(data)
+                                    },
+                                    initialize = function(name=NULL){
+                                      callSuper(name)
+                                    },
+                                    dtruncnorm= function(x,a=-Inf,b=Inf,mean=0,sd=1,log=F){
+                                      ret = NA
+                                      if(log==TRUE){
+                                        ret = dnorm ((x-mean)/sd, log = T) - log( pnorm(b ) - pnorm(a))
+                                      }else{
+                                        ret = dnorm ((x-mean)/sd) / (pnorm(b) - pnorm(a))
+                                      }
+                                      ret
+                                    },
+                                    logLike = function(){
+                                      a =   cslots[[1]]$compute()
+                                      b =   cslots[[2]]$compute()
+                                      pred =   cslots[[3]]$compute()
+                                      var =   cslots[[4]]$compute()
+                                      if(!.self$data$empty){ ##obsevred likelyhood
+                                        singlelikelihoods = .self$dtruncnorm(.self$data$data,a=a,b=b ,mean = pred, sd = var, log = T)  
+                                      }else{##unobseverd take sample at current position
+                                        singlelikelihoods = .self$dtruncnorm(.self$cvalue,a=a,b=b, mean = pred, sd = var, log = T)  
+                                      }
+                                      
+                                      sumll = sum(singlelikelihoods)
+                                      #  printf("sumll:%f",sumll)
+                                      return(sumll)    
+                                    },
+                                    setCurrentValue = function(v){
+                                      ##check ranges
+                                      min =   cslots[[1]]$compute()
+                                      max =   cslots[[2]]$compute()
+                                      if(v<min || v>max){
+                                       # printf('<%d/%d>value out of range:%f',min,max,v)
+                                        return(FALSE)
+                                      }
+                                      return(callSuper(v) )
+                                    },
+                                    getBounds = function(){
+                                      min =   cslots[[1]]$compute()
+                                      max =   cslots[[2]]$compute()
+                                      return(c(min,max))
+                                    }
+                                    
+                                    
+                                  )
+)
+
+
+###
 
 GammaDistribution <- setRefClass("GammaDistribution",
                                   fields = list(data='DataContainer'),
@@ -362,6 +424,47 @@ GammaDistribution <- setRefClass("GammaDistribution",
 )
 
 
+BernoulliDistribution <- setRefClass("BernoulliDistribution",
+                                 fields = list(data='DataContainer'),
+                                 contains = "Distribution",
+                                 methods = list(
+                                   setData = function(data){
+                                     .self$data = DataContainer(data)
+                                   },
+                                   initialize = function(name=NULL){
+                                     callSuper(name)
+                                     .self$type = 'discrete'
+                                     .self$cvalue = matrix(sample(c(0,1),1))
+                                   },
+                                   logLike = function(){
+                                     p =   cslots[[1]]$compute()
+                                     #  printf("pred:%f,var:%f",pred,var)
+                                     if(!.self$data$empty){ ##obsevred likelyhood
+                                       singlelikelihoods = dbern( .self$data$data,prob=p,log=T)  
+                                     }else{##unobseverd take sample at current position
+                                       singlelikelihoods = dbern(.self$cvalue,  prob=p,log=T)  
+                                       #   printf("singlelikelihoods:%f,.self$cvalue:%f",singlelikelihoods,.self$cvalue)
+                                     }
+                                     
+                                     sumll = sum(singlelikelihoods)
+                                     # printf("sumll:%f",sumll)
+                                     return(sumll)    
+                                   },
+                                   getBounds = function(){
+                                     return(c(0,1))
+                                   },
+                                   setCurrentValue = function(v){
+                                     if(v !=1 && v != 0 ){
+                                       printf('Value can only be 0/1 for dbern:%f',v)
+                                       return(FALSE)
+                                     }
+                                     callSuper(v)
+                                   }
+                                 )
+)
+
+
+
 
 UniformDistribution <- setRefClass("UniformDistribution",
                                  fields = list(data='DataContainer'),
@@ -392,7 +495,7 @@ UniformDistribution <- setRefClass("UniformDistribution",
                                      ##check ranges
                                      min =   cslots[[1]]$compute()
                                      max =   cslots[[2]]$compute()
-                                     if(v<min | v>max){
+                                     if(v<min || v>max){
                                        printf('value out of range:%f',v)
                                        return(FALSE)
                                      }
@@ -422,12 +525,25 @@ MultinomialDistribution <- setRefClass("MultinomialDistribution",
                                    },
                                    logLike = function(){
                                      probs = c()
-                                     for( i in 1:length(cslots)){
-                                       probs =c(probs,cslots[[i]]$compute())
+                                    # printf("length of slots probs:%d",length(cslots))
+                                    # if( length(cslots)==0 ){
+                                     #  printf('no slots set!')
+                                    # }
+                                     if(length(cslots)==1 ){
+                                       probs = cslots[[1]]$compute()
+                                     #  print('ncol(probs)=%d',ncol(probs))
+                                       if(ncol(probs)==1){
+                                         probs = t(probs)
+                                       }
+                                    #   printf("probs:%s",paste(probs,sep='',collapse = ','  ) )
+                                     }else{
+                                       for( i in 1:length(cslots)){
+                                         probs =c(probs,cslots[[i]]$compute())
+                                       }
+                                       probs = matrix(probs, ncol = length(cslots),byrow = F)
                                      }
-                                     probs = matrix(probs, ncol = length(cslots),byrow = F)
-                                    # printf("probs:%s",paste(probs,sep='',collapse = ','  ) )
-                                   #  printf('dims:%s ndata %s' ,probs,.self$data$data)
+                                  #   printf("probs:%s",paste(probs,sep='',collapse = ','  ) )
+                                  #   printf('dims:%s ndata %s' ,probs,.self$data$data)
                                      if(!.self$data$empty){ ##obsevred likelyhood
                                        singlelikelihoods = dcat(.self$data$data, prob=probs, log = T)  
                                      }else{##unobseverd take sample at current position
@@ -526,7 +642,92 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            callSuper( model)
                            ###remove doubel links
                          },
-                         takeSample = function(nSamples){
+                         sampleWithNodesList = function(nodesList,additionalList=list()){
+                           
+                           ret = rep(NA, length(nodesList))
+                         #  print('sample now!')
+                           for(i in 1:length(nodesList)){
+                             node = nodesList[[i]] 
+                          #   print('call sample')
+                             ret[i] =  sample(node$parents,node)
+                             names(ret)[i] =  node$getName()
+                           }
+                          # print('return now!')
+                           if(length(additionalList)>0 ){
+                             for(i in 1:length(additionalList)){
+                               node = additionalList[[i]]
+                               res =  node$compute()
+                               if(length(res)>1){
+                                 if(ncol(res)>1 ){
+                                   resnrow = nrow(res)
+                                   resncol = ncol(res)
+                                   res = as.numeric(res)   
+                                   names(res) =paste(node$getName(),'[', 1:resnrow ,',' , rep(1:resncol , each=resncol),']' ,sep='')
+                                     #paste( rep(paste(node$getName(),'[',1:resnrow ,sep = '') , each=resncol),',' , 1:resncol,']' ,sep='')
+                                 }else{
+                                   res = res[1:length(res)]   
+                                   names(res) = paste(node$getName(), '[',1:length(res),']', sep = '')
+                                 }
+                               }else{
+                                 names(res) = node$getName()
+                               }
+                              
+                               
+                               
+                               ret =append(ret,res)
+                             }
+                           }
+                           
+                           ret
+                         },
+                         setInitialValues = function( nodesList, initialValues=list() ){
+                           inames =  names(initialValues)
+                           for(i in 1:length(nodesList)){
+                             node = nodesList[[i]] 
+                             idx = which(node$getName() == inames)
+                             if(length(idx)!=0){ ##found
+                               if( !node$setCurrentValue(initialValues[[idx]] ) ){
+                                 printf('can not set initial value for %s',node$getName() )
+                               }
+                             }
+                           }
+                         },
+                         getAdditionalNodes=function(nodesList,addtionalNodes){
+                           isInList=function(nodesList, name){
+                             for(i in 1:length(nodesList)){
+                               node = nodesList[[i]] 
+                               if(node$getName() == name){ ##found
+                                 return(TRUE)
+                               }
+                             }
+                             return(FALSE)
+                           }
+                           getNode=function(plate, name){
+                             rootList = plate$getNodeList()
+                             for(i in 1:length(rootList)){
+                               if(rootList[[i]]$getName()==name){
+                                 return(rootList[[i]])
+                               }
+                             }
+                             return(NULL)
+                           }
+                           retnodesList =list()
+                           for(i in 1:length(addtionalNodes)){
+                             if(!isInList(nodesList,addtionalNodes[[i]])){
+                               node = getNode(.self$model,addtionalNodes[[i]])
+                               if(is.null(node)){
+                                 printf('node %s not found to watch.',addtionalNodes[[i]])
+                               }else{
+                                 printf('node %s found  add to watch.',addtionalNodes[[i]])
+                                 retnodesList = append(retnodesList, node)
+                               }
+                             }else{
+                               printf("Node %s is already watched.",addtionalNodes[[i]])
+                             }
+                           }
+                           retnodesList
+                         },
+                         takeSample = function(nSamples,initialValues = list(),addtionalNodes=list()){
                            ##ok.... we have the root, we nee to update samples now
                            if(nSamples<=0){
                              printf('Invalid number samples:%f',nSamples)
@@ -540,19 +741,65 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            if(class(.self$model)!='Plate'){
                              printf('%s is not a Plate',.self$model$getName())
                            }
+                          
+                           
+                           ## get a list with likelihood and priors
+                           nodesList = walkPlate(.self$model)
+                           
+                           printf('%s nodes in the model.', length(nodesList))
+                           if(length(nodesList)==0){
+                             return(NULL)
+                           }
+                           
+                           if(length(initialValues)>0){
+                             printf('setting initial Values')
+                             setInitialValues(nodesList,initialValues)
+                           }
+                           if(length(addtionalNodes)>0){
+                             printf('adding additional nodes to watch')
+                             addtionalNodes = getAdditionalNodes(nodesList,addtionalNodes)
+                           }
+                           
+                           # create progress bar
+                           total <- nSamples
+                           pb <- txtProgressBar(min = 0, max = total, style = 3)
+                          
+                           start_time <- Sys.time()
+                            ##
+                           
                            ##go recurrent throut the model.
-                           ret = unlist( walkPlate(.self$model)  )
+                           ret = sampleWithNodesList(nodesList,addtionalNodes)      #unlist( walkPlate(.self$model)  )
+                           setTxtProgressBar(pb, 1)
                            if(nSamples ==1){
+                             close(pb)
                              return(ret)
                            }
-                           for( ns in 1:(nSamples-1) ){
-                             s1 = walkPlate(.self$model)
-                             ret = rbind(ret,unlist(s1))
+                           
+                           end_time <- Sys.time()
+                           
+                           timeEstimate = (as.numeric(end_time-start_time) *(nSamples-1 )) / 60
+                           if(timeEstimate >60){
+                             printf('Time estimate: %f hours', timeEstimate/60)
+                           }else{
+                             printf('Time estimate: %f minutes',timeEstimate)
                            }
-                           ret
+                           
+                           ##prepare larger matrix
+                           ret2 = matrix(, nrow=nSamples,ncol=length(ret))
+                           colnames(ret2) = names(ret)
+                           ret2[1,] = ret
+ 
+                           for( ns in 2:(nSamples) ){
+                             s1 = sampleWithNodesList(nodesList,addtionalNodes)  #walkPlate(.self$model)
+                             ret2[ns,] = unlist(s1)
+                             setTxtProgressBar(pb, ns)
+                           }
+                           close(pb)
+                           ret2
                          },
                          walkPlate=function(root,parentName=''){
-                           samplesList = list()
+                          # samplesList = list()
+                           nodesList = list()
                            
                            if(class(root)!='Plate'){
                              printf('%s is not a Plate',root$getName()) #what should i do , just return ot what
@@ -562,7 +809,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
                              printf('No nodes in%s',root$getName())
                            }
                            for(r in 1:length(rootList)){
-                             printf("%d nodes in root",length(rootList))
+                          #   printf("%d nodes in root",length(rootList))
                              node = rootList[[r]] # this is the likelyhood we can take samples now.
                              
                              ### check if parent is legit to call me
@@ -583,16 +830,17 @@ MCMCsampler <- setRefClass("MCMCsampler",
                              
                              
                              if(class(node)=='StorageNode'){
-                               printf("%s is storage node",node$getName())
+                            #   printf("%s is storage node",node$getName())
                              #  samplesList[[node$getName()]] = node$compute()
-                               node$compute()
+                              # node$compute()
                                next;
                              }
                              
                              ##for each slot this has to be a distibution
                              if(length(node$slots)==0){
                                printf('No slots in node in %s',node$getName())
-                               return(samplesList)
+                              # return(samplesList)
+                               return(nodesList)
                              }
                              #need to sample from each one
                              printf('going through slots for node:%s',node$getName())
@@ -606,7 +854,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
 
                                  cnodes = cplate$getNodeList()
                                  if(length(cnodes)==0 ){
-                                   print('empty plate !')
+                                   printf('empty plate !')
                                    return(samplesList)
                                  }
                                  
@@ -625,7 +873,7 @@ MCMCsampler <- setRefClass("MCMCsampler",
 
                                    ##echeck for type palte
                                    if(class(priorNode)=='Plate'){
-                                     print('is plate i need to go deeper')
+                                     printf('is plate i need to go deeper')
                                      #just call walk plate with this ?
                                      stop('not implemented yet')
                                   #   retslist = walkPlate(cplate,node$getName())
@@ -649,23 +897,27 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                          ## call with list of nodes,actually since its double linked list I could also only call with prior
                                          #this would make it less strange
                                          printf('node: %s is last parent of node:%s',node$getName(),priorNode$getName())
-                                         retssample = sample(priorNode$parents,priorNode) 
+                                         #retssample = sample(priorNode$parents,priorNode) 
+                                         nodesList = append(nodesList, priorNode )
+                                         
                                        }else{
                                          printf('node: %s is not last parent of node:%s',node$getName(),priorNode$getName())
                                          next;
                                        }
                                      }else{
                                        printf('sample prior: %s prior:%s',node$getName(),priorNode$getName())
-                                       retssample = sample(node,priorNode)  
+                                       #retssample = sample(node,priorNode)
+                                       nodesList = append(nodesList, priorNode )
+                                       
                                      }
                                      
-                                     nodeName = priorNode$getName()
-                                     samplesList = append( samplesList,retssample)
-                                     names(samplesList)[length(samplesList)] =nodeName
+                                   #  nodeName = priorNode$getName()
+                                  #   samplesList = append( samplesList,retssample)
+                                  #   names(samplesList)[length(samplesList)] =nodeName
 
                              
                                    }else{
-                                     print('node contains data this should be a likelihood of some kind')
+                                     printf('node contains data this should be a likelihood of some kind')
                                    }
                                    
                                  }
@@ -675,9 +927,11 @@ MCMCsampler <- setRefClass("MCMCsampler",
                               
                                 retslist = walkPlate(cplate,node$getName())
                                 
+                                
                               #  printf('returning from walk with samples:%s',retslist)
                                 if(length(retslist)>0){
-                                  samplesList = append( samplesList,retslist)
+                                 # samplesList = append( samplesList,retslist)
+                                  nodesList = append(nodesList, retslist)
                                 }
                                  ##ok we sampled platt go one level up
                                  
@@ -686,7 +940,8 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                }
                              }
                            }
-                           return(samplesList)
+                          # return(samplesList)
+                           return(nodesList)
                          },
                          #helper to consider list objects
                          getLikelihood = function(likelihood){
@@ -702,14 +957,15 @@ MCMCsampler <- setRefClass("MCMCsampler",
                          },
                          #### ok now likelihood can be list, which is strange since prior already contains all information needed
                          sample=function(likelihood,prior){
-                           if(class(likelihood)=='list' ){
-                             printf('taking sample from likelhoods list:prior:%s',prior$getName() )
-                             for(i in 1:length(likelihood)){
-                               printf("likelihood:%d %s",i,likelihood[[i]]$getName())
-                             }
-                           }else{
-                            printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
-                         }
+                          # printf('called once more %s %s', class(prior), class(likelihood))
+                          # if(class(likelihood)=='list' ){
+                          #   printf('taking sample from likelhoods list:prior:%s',prior$getName() )
+                          #   for(i in 1:length(likelihood)){
+                          #     printf("likelihood:%d %s",i,likelihood[[i]]$getName())
+                          #   }
+                          # }else{
+                          #  printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
+                          # }
                          ###mcmc step
                          # betanew= beta + t(rmvnorm( 1,rep(0,p),diag(p)*0.1 ))
                          # oldprob = calcProb(X%*%beta,Y,sigma)
@@ -733,7 +989,14 @@ MCMCsampler <- setRefClass("MCMCsampler",
                            oldvalue = prior$cvalue
                            
                            repeat{
-                             newvalue =oldvalue  + rnorm(1,0,0.2)
+                             if(prior$type=='discrete'){
+                               
+                               vals = prior$getBounds()
+                               newvalue = base::sample(vals,1)
+                           #    printf('discrete function, %f',newvalue)
+                             }else{
+                               newvalue =oldvalue  + rnorm(1,0,0.2)
+                             }
                              if(prior$setCurrentValue(newvalue)){
                                break
                              }
@@ -788,14 +1051,14 @@ SliceSampler <- setRefClass("SliceSampler",
                            fields = list(),
                            methods = list(
                              sample=function(likelihood,prior){
-                               if(!is.list(likelihood)){
-                                 printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
-                               }else{
-                                 printf('taking sample from for prior:%s with a list of parents',prior$getName() )
-                                 for( i in 1:length(likelihood)){
-                                   print(likelihood[[i]]$getName())
-                                 }
-                               }
+                               #if(!is.list(likelihood)){
+                              #   printf('taking sample from like:%s and prior:%s',likelihood$getName(),prior$getName() )
+                              # }else{
+                              #   printf('taking sample from for prior:%s with a list of parents',prior$getName() )
+                              #   for( i in 1:length(likelihood)){
+                              #     printf(likelihood[[i]]$getName())
+                              #   }
+                              # }
                              
                                x0 = prior$cvalue
                                
@@ -817,24 +1080,24 @@ SliceSampler <- setRefClass("SliceSampler",
                                int = estimateIntervalSteppingOut(likelihood,prior,x0,y,w,m)  
                                ###get next value
                                repeat{
-                                 printf('bounds: [%f,%f]',int[1],int[2])
+                                # printf('bounds: [%f,%f]',int[1],int[2])
                                  r = runif(1, int[1],int[2])
-                                 print(r)
+                                # print(r)
                                  if(prior$setCurrentValue(matrix(r)) ){
                                    y_value = f()
                                    if(y_value>y){ ##is ok
-                                     printf('%f>%f accept point:%f',y_value,y,r)
+                                #     printf('%f>%f accept point:%f',y_value,y,r)
                                      break
                                    }
                                  }
-                                 printf('we need to adjust:%s',r)
+                              #   printf('we need to adjust:%s',r)
                                  ##point is not OK we have to adjust the slice
                                  if(r <x0){ #more to the left
                                    int[1] = r
                                  }else{
                                    int[2] = r
                                  }
-                                 printf('repeat [%s,%s]',int[1],int[2])
+                               #  printf('repeat [%s,%s]',int[1],int[2])
                                 # if(any(is.na(r))){
                                 #   stop()
                                 # }
@@ -855,17 +1118,15 @@ SliceSampler <- setRefClass("SliceSampler",
                                 J = floor(m*V)
                                 K = (m-1)-J
                                 
-                                printf('x0:%f starting bound:[%s,%s],J:%f,K:%f',x0,L,R,J,K)
+                            #    printf('x0:%f starting bound:[%s,%s],J:%f,K:%f',x0,L,R,J,K)
                                 while(J>0){
                                   if(! prior$setCurrentValue(L) ){
-                                    printf('could not set L value, we get bound ?%f',L)
+                               #     printf('could not set L value, we get bound ?%f',L)
                                     bounds = prior$getBounds()
-                                    print(bounds)
                                     L = bounds[1]
                                     break;
                                   }
                                    fl = f()
-                                   print(fl)
                                   
                                    if(fl <y){
                                      break;
@@ -876,20 +1137,20 @@ SliceSampler <- setRefClass("SliceSampler",
                                 
                                 while(K>0){
                                   if(! prior$setCurrentValue(R) ){
-                                    printf('could not set R value, we get bound ?%f',R)
+                             #       printf('could not set R value, we get bound ?%f',R)
                                     bounds = prior$getBounds()
                                     R = bounds[2]
                                     break;
                                   }
                                   fr = f()
-                                  print(fr)
+                                
                                   if(fr <y){
                                     break;
                                   }
                                   R = R +w 
                                   K = K-1
                                 }
-                                printf('get bounds: [%f,%f]',L,R)
+                              #  printf('get bounds: [%f,%f]',L,R)
                                   
                                 return(c(L,R))
                               }

@@ -1,19 +1,35 @@
 ###test rnn structure
 
+printf <- function(...){}
+
+
+largestEigenValue = function(W){
+  eigenvalues = eigen(W)$values
+  Me =  max(Re(eigenvalues[abs(Im(eigenvalues)) < 1e-6]))
+  
+  return(matrix(Me) )
+}
 
 model_str = '
 model elman{
-W[3,3] ~ dnorm(0,1)
+WL[3,3] ~ dtruncnorm(-1,1,0,1)
+WU[3,3] ~ dtruncnorm(-1,1,0,0.1)
+
 U[3,1] ~ dnorm(0,1)
 V[1,3] ~ dnorm(0,1)
 mu ~ dnorm(0,1)
+gamma[3,3] ~ dbern(0.5)
+
+delta ~ dunif(0,1)
+
+W = gamma %.% WL + (1-gamma) %.% WU 
 
 B[3,1] ~ dnorm(0,1)
 
 for( e in 1:nexamples){
   h_t[e,1] = 0 
   for( i in 1:ncol(X[e] ) ){
-    h_t[e,i+1] =  W * h_t[e,i] +  U* t( X[e,i] ) 
+    h_t[e,i+1] =   tanh( delta / largestEigenValue(W ) * (W * h_t[e,i]) +  U* t( X[e,i] ) )
   }
  res[e] = ( mu + (V * h_t[e,seqLength[e]+1] ) ) * B
 }
@@ -29,7 +45,7 @@ U = matrix(seq(0.5,1,length.out = 3),ncol=1 )
 set.seed(1234)
 X_list = list()
 Y = c()
-N_examples = 3
+N_examples = 4
 for(i in 1:N_examples){
   ht= matrix(0,ncol=3,nrow=3)
   X = matrix(,nrow=3,ncol=0)
@@ -45,16 +61,60 @@ for(i in 1:N_examples){
 
 data_list = list('Y'=matrix(Y),'X'=X_list,'nexamples'=length(X_list), 'seqLength'=rep(4,N_examples) )
   
-lex = Lexer()
-lex$setModelString(model_str)
-lex$setModelData(data_list)
+  lex = Lexer()
+  lex$setModelString(model_str)
+  lex$setModelData(data_list)
   
-lex$lexModel()
+  lex$lexModel()
   
-root_plate = lex$parseModel()
+  root_plate = lex$parseModel()
 
 mcmcSample = MCMCsampler(root_plate)
 
-samplesFromProblem = mcmcSample$takeSample(10)
+set.seed(1234)
+samplesFromProblem = mcmcSample$takeSample(100,addtionalNodes=c('W'))
 
 colMeans(samplesFromProblem)
+
+
+#sliceSample = SliceSampler(root_plate)
+
+#sliceSamples = sliceSample$takeSample(2)
+
+createAutoCorrelationPlot= function(samples){
+
+  nc = ncol(samples)
+  cnames = colnames(samples)
+  par(mfrow=c(ceiling( sqrt(nc) ),ceiling( sqrt(nc) )))
+  
+  for( x in 1:nc){
+    xname = cnames[x]
+    acf(samples[,xname],main=xname)
+  }
+  par(mfrow =c(1,1))  
+}
+createAutoCorrelationPlot(samplesFromProblem[,1:16])
+
+createCorrelationPlot = function( samples) {
+  
+  #old_par = par()
+  nc = ncol(samples)
+  
+  cnames = colnames(samples)
+  par(mfrow=c(nc,nc))
+  
+  for( x in 1:nc){
+    xname = cnames[x]
+     for( y in 1:nc){
+       yname = cnames[y]
+       if(x==y){
+         acf(samples[,yname],main=yname)
+         next
+       }
+       ccf(samples[,xname], samples[,yname],main=paste(xname,'/',yname ) )
+     }
+  }
+  par(mfrow =c(1,1))
+}
+
+createCorrelationPlot(samplesFromProblem[,10:14])

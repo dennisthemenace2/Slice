@@ -295,9 +295,9 @@ plot(network)
 
 ##### ok lets use it to set initial values and sample
 
-getSourceTarget(root_plate,init_list =list('alpha0[1]'=matrix(0),'alpha0[2]'=matrix(1) ) )
 
-samplesFromProblem = mcmcSample$takeSample(1000)
+samplesFromProblem = mcmcSample$takeSample(1000,initialValues =list('alpha0[1]'=matrix(0),'alpha0[2]'=matrix(1) ))
+
 colMeans(samplesFromProblem)
 
 

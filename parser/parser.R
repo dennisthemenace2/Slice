@@ -37,6 +37,10 @@ DistributionLexer <- setRefClass("DistributionLexer",
                            .self$distrib = UniformDistribution(name=.self$name)
                          }else if(type == 'dcat'){
                            .self$distrib = MultinomialDistribution(name=.self$name)
+                         }else if(type== 'dtruncnorm'){
+                           .self$distrib =TruncNormalDistribution(name=.self$name)
+                         }else if(type=='dbern'){
+                           .self$distrib = BernoulliDistribution(name=.self$name)  
                          }else if(type=='Constant'){
                            .self$distrib = Constant(.self$name) #create empty one
                            return()
@@ -121,7 +125,7 @@ Lexer <- setRefClass("Lexer",
                              methods = list(
                                getNextToken=function(str,pos){
                                  
-                                 delim = c('{','}','(',')','-','*','+','/','~','=',',',':')
+                                 delim = c('{','}','(',')','-','*','+','/','~','=',',',':','%.%')
                                  commentChar = '#'
                                  commentMode = F
                                  openBracket = 0
@@ -136,6 +140,14 @@ Lexer <- setRefClass("Lexer",
                                      openBracket = openBracket -1
                                    }
                                      
+                                   if(str[pos]=='%'){
+                                     if(nchar(cword)>0){
+                                       if(substr(cword,1,1) != '%'){
+                                         break;
+                                       }
+                                     }
+                                   }
+                                   
                                    if(str[pos]=='\n'){ #check new line
                                      #   print('new line')
                                      if(nchar(cword)>0 ){
@@ -159,7 +171,7 @@ Lexer <- setRefClass("Lexer",
                                        pos=pos+1
                                        break;
                                      }
-                                   }else if(any(str[pos]== delim)& openBracket==0 ){
+                                   }else if(  any(str[pos]== delim)  && openBracket==0 ){
                                      #  print('delim')
                                      #  print(nchar(cword))
                                      #  print(cword)
@@ -174,6 +186,11 @@ Lexer <- setRefClass("Lexer",
                                      break
                                    }else{
                                      cword= paste(cword,str[pos], sep = "")
+                                     if(any(cword == delim)){
+                                       type= 'DELIM'
+                                       pos = pos+1
+                                       break
+                                     }
                                    }
                                    pos = pos+1
                                    
@@ -182,7 +199,7 @@ Lexer <- setRefClass("Lexer",
                                },
                                findData =function(name){
                                  if(length(data_list)==0){
-                                   print('No data list set. Please set a list with data first')
+                                   printf('No data list set. Please set a list with data first')
                                    return(NULL)
                                  }
                                  ##cheack for array
@@ -336,7 +353,7 @@ Lexer <- setRefClass("Lexer",
                                
                                lexModel =function(){
                                  if(nchar(model_str)==0){
-                                   print('No model loaded')
+                                   printf('No model loaded')
                                    return(-1)
                                  }
                                  #
@@ -348,11 +365,11 @@ Lexer <- setRefClass("Lexer",
                                    i = ret_token$pos
                                    cword = ret_token$str
                                     if(cword=='model'){
-                                       print('found model')
+                                       printf('found model')
                                        ##extract model and call different lexer for model
                                        start=i-6
                                        end = findNextBlock(allCharacter,start)
-                                       printf('start:%d,end:%d',start,end)
+                                      # printf('start:%d,end:%d',start,end)
                                        mod = createModel(allCharacter[start:end])
                                        if(!is.null(mod)){
                                          ##append
@@ -390,10 +407,10 @@ Lexer <- setRefClass("Lexer",
                                    prevAssigment = which(str=='=')
                                   prevToken = which( prevAssigment < ret_token$pos  )
                                    ret_token$pos =prevAssigment[length(prevToken)]+1
-                                 #    print(prevAssigment[length(prevToken)]+1)
-                                   printf('str:%s',paste(str,collapse = '',sep='' ) )
+                                 #    printf(prevAssigment[length(prevToken)]+1)
+                                #   printf('str:%s',paste(str,collapse = '',sep='' ) )
                               #     ret_token$pos = ret_token$pos - nchar(token)
-                                   printf("pos:%d ,prevToken=%s", ret_token$pos , token)
+                                 #  printf("pos:%d ,prevToken=%s", ret_token$pos , token)
                                 #   print
                                    
                                  }
@@ -553,7 +570,7 @@ Lexer <- setRefClass("Lexer",
                                        plainText = paste(plainText,token,sep='')
                                        next;
                                      }
-                                     print('new slot')
+                                     printf('new slot')
                                      variableNames = unique(variableNames)
                                      printf('add plaintext:%s',plainText)
                                      printf('add slotmembers:%s',variableNames)
@@ -575,7 +592,7 @@ Lexer <- setRefClass("Lexer",
                                #lex some model
                                createModel=function(str){
                                  newmodel =NULL
-                                 printf(str)
+                                 print(str)
                                  ret_token = getNextToken(str,1)
                                  token = ret_token$str
                                  if(token !='model'){
@@ -617,7 +634,7 @@ Lexer <- setRefClass("Lexer",
                                           forCnter = forCnter-1
                                           next;
                                         }else{
-                                          print('closing model !')
+                                          printf('closing model !')
                                           next;
                                         }
                                       }
@@ -658,8 +675,8 @@ Lexer <- setRefClass("Lexer",
                                         printf('is computation node')
                                       }
                                       
-                                      if(any(token==c('dnorm','dgamma','dunif','dcat') | state ==3 )){
-                                        print('parse distribution...')
+                                      if(any(token==c('dnorm','dgamma','dunif','dcat','dtruncnorm','dbern')) || state ==3 ){
+                                        printf('parse distribution...')
                                         #normal dist.
                                         #now get included terms and slots.
                                         #have to check if already exist with the same name !
@@ -849,7 +866,7 @@ Lexer <- setRefClass("Lexer",
                                         }
                                         # .self$model_list = append(.self$model_list,newmodel)
                                          state = 0
-                                         print('reset state')
+                                         printf('reset state')
                                          
                                       }else{
                                         printf('unknown distribution:%s',token)
@@ -865,7 +882,7 @@ Lexer <- setRefClass("Lexer",
                                       if(token==')'){
                                         openCnt = openCnt -1
                                         if(openCnt ==0 ){
-                                          print('for loop ends and initialized')
+                                          printf('for loop ends and initialized')
                                            
                                           forListElem$numbers = evalTokenBound(forListElem$numbers)
                                           printf('for loop bounds:%s',forListElem$numbers )
@@ -890,7 +907,7 @@ Lexer <- setRefClass("Lexer",
                                       }
                                     }else if(state ==5){
                                       if(token == '{'){
-                                        print('got opening bracket continue')
+                                        printf('got opening bracket continue')
                                         state = 0
                                       }else{
                                         printf('expecting { got:%s',token)
@@ -900,7 +917,7 @@ Lexer <- setRefClass("Lexer",
                                     
                                     i = i-1
                                     if(i==0){
-                                      print('emergency break')
+                                      printf('emergency break')
                                       break
                                     }
                                  }
@@ -1006,12 +1023,12 @@ Lexer <- setRefClass("Lexer",
                                      ##and do more ?
                                    }
                                    if(cntObserved==0){
-                                     print('No node with observed data thats odd !')
+                                     printf('No node with observed data thats odd !')
                                    }else if(cntObserved==1){
-                                     print('One observed Node, this will be used as root of the model')
+                                     printf('One observed Node, this will be used as root of the model')
                                     # rootNode = 
                                    }else{
-                                     print('Multible nodes with data observed, choosing first for root')
+                                     printf('Multible nodes with data observed, choosing first for root')
                                    }
                                    ###ok create model
                                    
@@ -1043,17 +1060,17 @@ Lexer <- setRefClass("Lexer",
                                            if(hasSubstring(storageName, cd2$plainslots[[x]]) ){
                                            #  cd2$plainslots[[x]] = gsub(storageName, strToReplace, cd2$plainslots[[x]],fixed = T)
                                              cd2$plainslots[[x]] =  replaceSubstring(storageName, strToReplace, cd2$plainslots[[x]])
-                                             printf('replacing %s in %s with %s',storageName,cd2$getName(), strToReplace)
-                                             printf('plainslot now:%s',cd2$plainslots[[x]])
-                                             printf('new slots to add:%s',cd$slotMembers[[1]])
+                                           #  printf('replacing %s in %s with %s',storageName,cd2$getName(), strToReplace)
+                                          #   printf('plainslot now:%s',cd2$plainslots[[x]])
+                                          #   printf('new slots to add:%s',cd$slotMembers[[1]])
                                              for( r in 1:length(cd2$slotMembers[[x]] ) ){
                                                
                                                if(cd2$slotMembers[[x]][r]==storageName ){
                                                  printf('removing for%s',cd2$getName())
-                                                # print(cd2$slotMembers[[x]])
+                                                # printf(cd2$slotMembers[[x]])
                                                  cd2$slotMembers[[x]]= append(cd2$slotMembers[[x]],cd$slotMembers[[1]] )
                                                  cd2$slotMembers[[x]] = unique( cd2$slotMembers[[x]][-r] ) 
-                                                # print(cd2$slotMembers[[x]])
+                                                # printf(cd2$slotMembers[[x]])
                                                  
                                                }else{
                                                   ##always these speacial cases
@@ -1090,7 +1107,7 @@ Lexer <- setRefClass("Lexer",
                                      #print(class(cd))
                                      ###remove double slormembers
                                      if(length(cd$slotMembers)>1){
-                                       print('checking slots')
+                                       printf('checking slots')
                                        already = cd$slotMembers[[1]]
                                        printf('members first 1:%s',paste(cd$slotMembers[[1]] ,sep='',collapse = ',' ) )
                                        
@@ -1112,8 +1129,8 @@ Lexer <- setRefClass("Lexer",
                                      
                                      
                                      for(x in 1:length(cd$slotMembers)){
-                                       print(length(cd$slotMembers))
-                                       printf('slotmembers in total:%s',cd$slotMembers[[x]])
+                                       
+                                       printf('%d slotmembers in total:%s',length(cd$slotMembers),cd$slotMembers[[x]])
                                        step_plate = Plate(paste('slot_', cd$name,as.character(x),sep=''))
                                        if(length(cd$slotMembers[[x]])==0){
                                          next;
@@ -1181,7 +1198,7 @@ Lexer <- setRefClass("Lexer",
                                                           newList = list()
                                                           if(class(distList[[si]]$distrib) =='ComputationHelperNode'){
                                                             for(z in 1:length(distList[[si]]$distrib$cslots)){
-                                                             # print(distList[[si]]$distrib$cslots[[z]]$getName() )
+                                                             # printf(distList[[si]]$distrib$cslots[[z]]$getName() )
                                                               newd =  cmodel$findDist(distList[[si]]$distrib$cslots[[z]]$getName())
                                                               if(!is.null(newd)){
                                                                 printf("we append:%s",distList[[si]]$distrib$cslots[[z]]$getName())
@@ -1190,7 +1207,7 @@ Lexer <- setRefClass("Lexer",
                                                             }
                                                           }else{
                                                             for(z in 1:length(allMem)){
-                                                            #  print(allMem[z])
+                                                            #  printf(allMem[z])
                                                               newd =  cmodel$findDist(allMem[z])
                                                               if(!is.null(newd)){
                                                                 printf("we append:%s",allMem[z])
@@ -1240,7 +1257,7 @@ Lexer <- setRefClass("Lexer",
                                          modelPtr = modelPtr$distrib
                                          
                                          if(class(modelPtr)!='Constant' ){
-                                          # print('add dists do the plate!!!!!!')
+                                          # printf('add dists do the plate!!!!!!')
                                            step_plate$addNode( modelPtr) 
                                            ##also set parent here for double linked list
                                            
