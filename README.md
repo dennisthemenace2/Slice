@@ -186,16 +186,16 @@ gamma[3,3] ~ dbern(0.5)
 
 delta ~ dunif(0,1)
 
-W = gamma %.% WL + (1-gamma) %.% WU 
+W = gamma * WL + (1-gamma) * WU 
 
 B[3,1] ~ dnorm(0,1)
 
 for( e in 1:nexamples){
   h_t[e,1] = 0 
   for( i in 1:ncol(X[e] ) ){
-    h_t[e,i+1] =   tanh( delta / largestEigenValue(W ) * (W * h_t[e,i]) +  U* t( X[e,i] ) )
+    h_t[e,i+1] =   tanh(  (delta / largestEigenValue(W)) * (W * h_t[e,i]) +  U %*% t( X[e,i] ) )
   }
- res[e] = ( mu + (V * h_t[e,seqLength[e]+1] ) ) * B
+ res[e] = ( mu + (V %*% h_t[e,seqLength[e]+1] ) ) %*% B
 }
  Y ~dnorm( res  , 1 )
 }
@@ -204,7 +204,7 @@ for( e in 1:nexamples){
 Regarding the technical implementation, notice, that variables like "res", "W", or "V" are used by there names but defined differently.
 So, this will lead to the creation of ComputationHelperNodes during parsing which links to the StorageNodes or Distribution.
 This means, that StorageNodes can not be pruned but they dont need to be computed since the HelperNodes do this. 
-Futher column Vectors are the default for vectors now. The operator %.% does element wise multiplication, might be changed to make it more agree with R.
+Futher column Vectors are the default for vectors now. The operator %*% is matrix multiplication in agreement with R.
 
 Concerning the model, well, you can see that a lot has been done in terms of supported syntax. The model is very slow, even for redicolous little examples.
 

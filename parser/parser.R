@@ -125,11 +125,11 @@ Lexer <- setRefClass("Lexer",
                              methods = list(
                                getNextToken=function(str,pos){
                                  
-                                 delim = c('{','}','(',')','-','*','+','/','~','=',',',':','%.%')
+                                 delim = c('{','}','(',')','-','*','+','/','~','=',',',':','%*%')
                                  commentChar = '#'
                                  commentMode = F
                                  openBracket = 0
-                                 cword=''
+                                 cword=""
                                  type='No'
                                  while(pos <= length(str) ){
                                     # printf('char:%s',str[pos])
@@ -142,9 +142,20 @@ Lexer <- setRefClass("Lexer",
                                      
                                    if(str[pos]=='%'){
                                      if(nchar(cword)>0){
-                                       if(substr(cword,1,1) != '%'){
-                                         break;
+                                       printf('chars in cword:%d',nchar(cword))
+                                       break
+                                      # if(substr(cword,1,1) != '%'){
+                                      #   break;
+                                      # }
+                                     }else{
+                                       epos = pos+1
+                                       while(str[epos]!='%'){
+                                         epos = epos +1
                                        }
+                                       cword= paste(cword,str[pos:epos], sep = "",collapse = '')
+                                       pos = epos+1
+                                       type= 'DELIM'
+                                       break;
                                      }
                                    }
                                    
@@ -172,9 +183,9 @@ Lexer <- setRefClass("Lexer",
                                        break;
                                      }
                                    }else if(  any(str[pos]== delim)  && openBracket==0 ){
-                                     #  print('delim')
-                                     #  print(nchar(cword))
-                                     #  print(cword)
+                                       print('delim')
+                                       print(nchar(cword))
+                                       print(cword)
                                      if(nchar(cword)>0){
                                        #   print('return word')
                                        break;

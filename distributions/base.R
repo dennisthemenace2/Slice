@@ -532,8 +532,13 @@ MultinomialDistribution <- setRefClass("MultinomialDistribution",
                                      if(length(cslots)==1 ){
                                        probs = cslots[[1]]$compute()
                                      #  print('ncol(probs)=%d',ncol(probs))
-                                       if(ncol(probs)==1){
-                                         probs = t(probs)
+                                      # if(ncol(probs)==1){
+                                      #   probs = t(probs)
+                                      # }
+                                       if(!.self$data$empty){
+                                         probs= matrix( probs,nrow= nrow(.self$data$data) , byrow = F)
+                                       }else{
+                                         probs= matrix( probs,nrow=1 )
                                        }
                                     #   printf("probs:%s",paste(probs,sep='',collapse = ','  ) )
                                      }else{

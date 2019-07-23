@@ -56,10 +56,10 @@ ComputationNodeAdd <- setRefClass("ComputationNodeAdd",
                                       #return(as.vector(res$a) + as.vector(res$b) )
                                      # printf('dims for add: %dx%d %dx%d',
                                       #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
-                                      if(ncol(res$a)==1 & nrow(res$a)==1){
+                                      if(ncol(res$a)==1 && nrow(res$a)==1){
                                         return(as.numeric(res$a) + res$b)
                                       }
-                                      if(ncol(res$b)==1 & nrow(res$b)==1){
+                                      if(ncol(res$b)==1 && nrow(res$b)==1){
                                         return(res$a + as.numeric(res$b) )
                                       }
                                       
@@ -76,10 +76,10 @@ ComputationNodeSub <- setRefClass("ComputationNodeSub",
                                       res = callSuper()
                                 #      printf('dims: %dx%d %dx%d',
                                  #            ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
-                                      if(ncol(res$a)==1 & nrow(res$a)==1){
+                                      if(ncol(res$a)==1 && nrow(res$a)==1){
                                         return(as.numeric(res$a) - res$b)
                                       }
-                                      if(ncol(res$b)==1 & nrow(res$b)==1){
+                                      if(ncol(res$b)==1 && nrow(res$b)==1){
                                         return(res$a - as.numeric(res$b) )
                                       }
                                       
@@ -97,10 +97,10 @@ ComputationNodeDiv <- setRefClass("ComputationNodeDiv",
                                       res = callSuper()
                                      # printf('dims: %dx%d %dx%d',
                                       #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
-                                      if(ncol(res$a)==1 & nrow(res$a)==1){
+                                      if(ncol(res$a)==1 && nrow(res$a)==1){
                                         return(as.numeric(res$a) / res$b)
                                       }
-                                      if(ncol(res$b)==1 & nrow(res$b)==1){
+                                      if(ncol(res$b)==1 && nrow(res$b)==1){
                                         return(res$a / as.numeric(res$b) )
                                       }
                                       
@@ -118,21 +118,11 @@ ComputationNodeMultiply <- setRefClass("ComputationNodeMultiply",
                                           # if(is.numeric(res$b)){
                                           #   printf('numeric b:%f',res$b)
                                           # }
-                                          # printf('a:%s b:%s',as.character(class(res$a)) ,as.character( class(res$b)) )
-                                          # printf('dims: %dx%d %dx%d',
-                                           #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
+                                         #  printf('a:%s b:%s',as.character(class(res$a)) ,as.character( class(res$b)) )
+                                        #   printf('dims: %dx%d %dx%d',
+                                         #         ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
                                            
-                                           if(nrow(res$a)!= ncol(res$b) ){
-                                            # printf('this will not be valid: %dx%d %dx%d',
-                                             #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
-                                            # printf('%f',res$b)
-                                             if( ncol(res$b)==1 & nrow(res$b)==1 ){
-                                               return(res$a * as.numeric( res$b) )
-                                             }
-                                             if( ncol(res$a)==1 & nrow(res$a)==1 ){
-                                               return(as.numeric(res$a) *  res$b )
-                                             }
-                                           }
+                                          
                                            return(res$a %*% res$b)
                                          }
                                        )
@@ -145,6 +135,17 @@ ComputationNodeMultiplyElement <- setRefClass("ComputationNodeMultiplyElement",
                                        methods = list(
                                          compute=function(){##do compuation return result
                                            res = callSuper()
+                                           if(nrow(res$a)!= ncol(res$b) ){
+                                             # printf('this will not be valid: %dx%d %dx%d',
+                                             #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
+                                             # printf('%f',res$b)
+                                             if( ncol(res$b)==1 && nrow(res$b)==1 ){
+                                               return(res$a * as.numeric( res$b) )
+                                             }
+                                             if( ncol(res$a)==1 && nrow(res$a)==1 ){
+                                               return(as.numeric(res$a) *  res$b )
+                                             }
+                                           }
                                            return(res$a * res$b)
                                          }
                                        )
@@ -320,11 +321,11 @@ ParseComputation <- setRefClass("ParseComputation",
                         }else if(op=='-'){
                           return(ComputationNodeSub())
                         }else if(op=='*'){
-                          return(ComputationNodeMultiply())
+                          return(ComputationNodeMultiplyElement())
                         }else if(op=='/'){
                           return(ComputationNodeDiv())
-                        }else if(op=='%.%'){
-                          return(ComputationNodeMultiplyElement())
+                        }else if(op=='%*%'){
+                          return(ComputationNodeMultiply())
                         }else{
                           printf('unkonwn op:%s',op)
                         }
@@ -448,7 +449,7 @@ ParseComputation <- setRefClass("ParseComputation",
                           
                          # if(nchar(op)==0){
                           #check for dominance
-                          if( any(op==c('*','/' , '%.%') ) & any(token==c('+','-') ) ){
+                          if( any(op==c('*','/' , '%*%') ) & any(token==c('+','-') ) ){
                             ## number has to be in node and this node and the new node has to be root
                             lastNode$b= p1#createNode(p1)
                             newnode  = createOpNode(token)
@@ -559,7 +560,7 @@ text = "sqrt(2)[c(1) ,1]"
 res = pc$parse(text)
 res$compute()
 
-text = "-4%.%1"
+text = "-4%*%1"
 res = pc$parse(text)
 res$compute()
 
