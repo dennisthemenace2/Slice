@@ -191,9 +191,9 @@ W = gamma * WL + (1-gamma) * WU
 B[3,1] ~ dnorm(0,1)
 
 for( e in 1:nexamples){
-  h_t[e,1] = 0 
+  h_t[e,1] = matrix(0,3,3)
   for( i in 1:ncol(X[e] ) ){
-    h_t[e,i+1] =   tanh(  (delta / largestEigenValue(W)) * (W * h_t[e,i]) +  U %*% t( X[e,i] ) )
+    h_t[e,i+1] =   tanh(  (delta / largestEigenValue(W)) * (W %*% h_t[e,i] ) +  U %*% t( X[e,i] ) )
   }
  res[e] = ( mu + (V %*% h_t[e,seqLength[e]+1] ) ) %*% B
 }
