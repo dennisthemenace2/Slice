@@ -650,10 +650,10 @@ MCMCsampler <- setRefClass("MCMCsampler",
                          sampleWithNodesList = function(nodesList,additionalList=list()){
                            
                            ret = rep(NA, length(nodesList))
-                         #  print('sample now!')
+                          # print('sample now!')
                            for(i in 1:length(nodesList)){
                              node = nodesList[[i]] 
-                          #   print('call sample')
+                           #  print('call sample')
                              ret[i] =  sample(node$parents,node)
                              names(ret)[i] =  node$getName()
                            }
@@ -869,6 +869,41 @@ MCMCsampler <- setRefClass("MCMCsampler",
                             #         cnodes = cnodes[[1]]$slots[[1]]$getNodeList()
                             #      }
                             #    }
+                       
+                                checkHERE= function(priorNode,node,nodesList) {
+                                  if(priorNode$data$empty){
+                                    printf('thats great we can sample:',priorNode$getName())
+                                    ## ok we found that we need to take samples from
+                                    
+                                    ##not so quick we need to check if we are last parent (or if hasnt been sampled already)
+                                    #if more parents than one, we need to give a list of all parents to 
+                                    #calculate the likelihood correctly, and avoid sampling twice
+                                    if(length(priorNode$parents)>1){
+                                      if(priorNode$isLastParentNode(node$getName() ) ){
+                                        ##is last
+                                        ## call with list of nodes,actually since its double linked list I could also only call with prior
+                                        #this would make it less strange
+                                        printf('node: %s is last parent of node:%s',node$getName(),priorNode$getName())
+                                        #retssample = sample(priorNode$parents,priorNode) 
+                                        nodesList = append(nodesList, priorNode )
+                                        
+                                      }else{
+                                        printf('node: %s is not last parent of node:%s',node$getName(),priorNode$getName())
+                                        return(nodesList)
+                                        # next;
+                                      }
+                                    }else{
+                                      printf('sample prior: %s prior:%s',node$getName(),priorNode$getName())
+                                      #retssample = sample(node,priorNode)
+                                      nodesList = append(nodesList, priorNode )
+                                      
+                                    }
+                                    
+                                  }else{
+                                    printf('node contains data this should be a likelihood of some kind')
+                                  }
+                                  nodesList
+                                }
                                 
                                 
                                  for(e in 1:length(cnodes)){
@@ -879,52 +914,19 @@ MCMCsampler <- setRefClass("MCMCsampler",
                                    ##echeck for type palte
                                    if(class(priorNode)=='Plate'){
                                      printf('is plate i need to go deeper')
-                                     #just call walk plate with this ?
                                      stop('not implemented yet')
-                                  #   retslist = walkPlate(cplate,node$getName())
-                                     #  printf('returning from walk with samples:%s',retslist)
-                                   #  if(length(retslist)>0){
-                                  #     samplesList = append( samplesList,retslist)
-                                  #   }
+                                     
                                      next
                                    }
-                                 
-                                   if(priorNode$data$empty){
-                                     printf('thats great we can sample:',priorNode$getName())
-                                     ## ok we found that we need to take samples from
-                                     
-                                     ##not so quick we need to check if we are last parent (or if hasnt been sampled already)
-                                     #if more parents than one, we need to give a list of all parents to 
-                                     #calculate the likelihood correctly, and avoid sampling twice
-                                     if(length(priorNode$parents)>1){
-                                       if(priorNode$isLastParentNode(node$getName() ) ){
-                                          ##is last
-                                         ## call with list of nodes,actually since its double linked list I could also only call with prior
-                                         #this would make it less strange
-                                         printf('node: %s is last parent of node:%s',node$getName(),priorNode$getName())
-                                         #retssample = sample(priorNode$parents,priorNode) 
-                                         nodesList = append(nodesList, priorNode )
-                                         
-                                       }else{
-                                         printf('node: %s is not last parent of node:%s',node$getName(),priorNode$getName())
-                                         next;
-                                       }
-                                     }else{
-                                       printf('sample prior: %s prior:%s',node$getName(),priorNode$getName())
-                                       #retssample = sample(node,priorNode)
-                                       nodesList = append(nodesList, priorNode )
-                                       
+                                   if(class(priorNode)=='ComputationHelperNode'){
+                                     for(tz in 1:length(priorNode$cslots)){
+                                       nodesList = checkHERE(priorNode$cslots[[tz]],node,nodesList)
+                                      # priorNode$cslots[[tz]]$addParentNode(priorNode$parent)
                                      }
-                                     
-                                   #  nodeName = priorNode$getName()
-                                  #   samplesList = append( samplesList,retssample)
-                                  #   names(samplesList)[length(samplesList)] =nodeName
-
-                             
-                                   }else{
-                                     printf('node contains data this should be a likelihood of some kind')
-                                   }
-                                   
+                                     next;
+                                   }          
+                          
+                                   nodesList = checkHERE(priorNode,node,nodesList)
                                  }
                                 ##walk up one step
                                 ##only walk up with last parent

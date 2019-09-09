@@ -30,7 +30,7 @@ model regModel{
 
 
 
-This tree can be used to sample componentwise from the posterior distribution.
+This tree can be used to sample component-wise from the posterior distribution.
 
 
 ```R
@@ -161,6 +161,40 @@ Since apparently, one distribution can be part of multiple slots, the slot membe
 
 Further, debugging functionality will hopefully be provided soon, to plot and debug the model easier.
 
+## Decayed Regression.
+
+Assume y is predicted by the features which have decreasing influence on the prediction.
+instead of estimating one beta for each feature be assume one beta that decreases over the features
+
+y =x1 * beta1*exp(-lambda*0) + x2 * beta1*exp(-lambda*1)+..+ beta0 
+
+The first number in the exponent we want to be 0 so that exp(0)=1
+
+Lets write down the joint probability 
+p(y,x,beta, lambda, s, sigma) = p(y|x*b*exp(-lambda*t), sigma )
+                                p(beta|0,s) p(lambda|e0,f0) p(sigma|a0,b0) p(s|c0,c0)   
+
+Now, we can implement this in Slice:
+
+```R
+model_str = '
+model regModel{
+
+  y ~ dnorm( mu , sigma) 
+  sequ =  lambda * seq(0,weights-1) %*%-1
+  mu = x %*% ( beta1 * exp( sequ ) ) + beta0
+
+  lambda~dgamma(0.001,0.001)
+  sigma~dgamma(0.001,0.001)
+  beta0 ~ dnorm(0,s)
+  beta1 ~ dnorm(0,s)
+  s~dgamma(0.001,0.001)
+}
+'
+```
+
+The implementation can be found in the "testDecayRegression.R" file.
+I also made a variational implementation and Gibbs sampler for this model, which can be found here:[Variational Model](https://github.com/dennisthemenace2/hBReg/blob/master/decayRegression.R)
 
 ## Recurrent Bayesian Neuronal Networks.
 

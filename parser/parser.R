@@ -183,9 +183,9 @@ Lexer <- setRefClass("Lexer",
                                        break;
                                      }
                                    }else if(  any(str[pos]== delim)  && openBracket==0 ){
-                                       print('delim')
-                                       print(nchar(cword))
-                                       print(cword)
+                                     #  print('delim')
+                                    #   print(nchar(cword))
+                                    #   print(cword)
                                      if(nchar(cword)>0){
                                        #   print('return word')
                                        break;
@@ -1277,8 +1277,16 @@ Lexer <- setRefClass("Lexer",
                                              printf("%s is storage node",cd$distrib$getName())
 
                                           }else{
+                                            if(class(modelPtr) =='ComputationHelperNode'){
+                                              print('arg is helpernode')
+                                              for(tz in 1:length(modelPtr$cslots)){
+                                                printf('add parent %s - %s',cd$distrib$getName(),modelPtr$cslots[[tz]]$getName())
+                                                modelPtr$cslots[[tz]]$addParentNode(cd$distrib)
+                                              }
+                                            }else{
                                              printf('add parent %s - %s',cd$distrib$getName(),modelPtr$getName())
                                              modelPtr$addParentNode(cd$distrib)
+                                            }
                                           }
                                          }
                                          
