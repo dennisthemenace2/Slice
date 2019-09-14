@@ -132,8 +132,8 @@ Lexer <- setRefClass("Lexer",
                                  cword=""
                                  type='No'
                                  while(pos <= length(str) ){
-                                    # printf('char:%s',str[pos])
-                                    # print(cword)
+                                   #  printf('pos %d ,char:%s',pos,str[pos])
+                                  #   print(cword)
                                    if(str[pos]=='['){
                                      openBracket = openBracket +1
                                    }else if(str[pos]==']'){
@@ -397,6 +397,9 @@ Lexer <- setRefClass("Lexer",
                                },
                                addParsedistribtuion =function(newmodel,tokenName,token,ret_token,str,forStates=NULL,isStorageNode=F){
                                  
+                                 ####workaround for my comment function because i replace last # with )
+                                 onePostitionBack = F
+                                 
                                  if(!newmodel$chkDistName(tokenName)){
                                    printf('There aready is a distribution with the name:%s',tokenName)
                                  }
@@ -411,9 +414,16 @@ Lexer <- setRefClass("Lexer",
                                    nd =  DistributionLexer(tokenName,'storage')
                                    ##only till end of line and revert last token 
                                    newlines = which(str=='\n' | str=='#') 
-                                   str=str[1:(newlines[which(newlines >= ret_token$pos)[1]] )  ]
-                                   str[length(str)] = ')'
                                    
+                                   str=str[1:(newlines[which(newlines >= ret_token$pos)[1]] )  ]
+                         
+                                   if(str[length(str)]=='#'){
+                                     ###oh we need to take care of this at the end
+                                     onePostitionBack = T
+                                   }
+                                   
+                                   str[length(str)] = ')'
+                                 #  print(str)
                                  
                                    prevAssigment = which(str=='=')
                                   prevToken = which( prevAssigment < ret_token$pos  )
@@ -597,7 +607,11 @@ Lexer <- setRefClass("Lexer",
                                  
                                  #add all slots or so and reset state
                                  newmodel$dists= append(newmodel$dists,nd)
-                                 
+                                 ##sub one
+                                 if(onePostitionBack){
+                                   ret_token$pos = ret_token$pos-1 
+                                 }
+                               #  stop()
                                  return(ret_token)
                                },
                                #lex some model
@@ -1108,7 +1122,7 @@ Lexer <- setRefClass("Lexer",
                                
                                    
                                    for(i in 1:length(dists)){
-                                     print(length(dists))
+                                    # print(length(dists))
                                      cd = dists[[i]]
                                      if(cd$type == 'Constant'){
                                        next;

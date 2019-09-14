@@ -135,16 +135,18 @@ ComputationNodeMultiplyElement <- setRefClass("ComputationNodeMultiplyElement",
                                        methods = list(
                                          compute=function(){##do compuation return result
                                            res = callSuper()
-                                           if(nrow(res$a)!= ncol(res$b) ){
+                                           if(nrow(res$a)!= ncol(res$b) ||
+                                              ncol(res$a)!= nrow(res$b)){
                                              # printf('this will not be valid: %dx%d %dx%d',
                                              #       ncol(res$a),nrow(res$a),ncol(res$b),nrow(res$b) )
                                              # printf('%f',res$b)
                                              if( ncol(res$b)==1 && nrow(res$b)==1 ){
                                                return(res$a * as.numeric( res$b) )
                                              }
-                                             if( ncol(res$a)==1 && nrow(res$a)==1 ){
+                                            # if( ncol(res$a)==1 && nrow(res$a)==1 ){
                                                return(as.numeric(res$a) *  res$b )
-                                             }
+                                            # }
+                                             
                                            }
                                            return(res$a * res$b)
                                          }
@@ -265,10 +267,23 @@ ParseComputation <- setRefClass("ParseComputation",
                           return(ComputationNodeValue(l1,l1))
                         }
                         #is data ?
+                        
+                        ##check if first is -
+                        doSub = F
+                        if(substr(l1,1,1) == '-'){
+                          ##ok
+                          l1 = substr(l1,2,nchar(l1))
+                          doSub = T
+                        }
                         res = lexer$findData(l1)
                         if(!is.null(res)){
                           printf('is data node:%s',l1)
-                          return(ComputationNodeValue(res,l1))
+                          if(doSub){
+                            node = ComputationNodeValue(-res,l1)
+                          }else{
+                            node = ComputationNodeValue(res,l1)
+                          }
+                          return(node)
                         }
                         ##check dist
                         if(length(lexer$model_list)>0){
@@ -276,7 +291,15 @@ ParseComputation <- setRefClass("ParseComputation",
                           res = lexer$model_list[[modelIdx]]$findDist(l1)
                           if(!is.null(res)){
                             printf('is distribution:%s',l1)
-                            return( ComputationNodeRef(res$distrib))
+                            node =ComputationNodeRef(res$distrib)
+                            if(doSub){
+                              mn = ComputationNodeMultiplyElement()
+                              mn$a = ComputationNodeValue(-1,'-1')
+                              mn$b = node
+                              node = mn
+                              print('return times minus for you')
+                            }
+                            return( node)
                           }
                           
                           nodesList = list()
@@ -293,7 +316,14 @@ ParseComputation <- setRefClass("ParseComputation",
                             }
                           if(length(nodesList)>0){
                             printf('found some nodes that we can use:%d',length(nodesList))
-                            return(ComputationNodeRefList(nodesList))
+                            node = ComputationNodeRefList(nodesList)
+                            if(doSub){
+                              mn = ComputationNodeMultiplyElement()
+                              mn$a = ComputationNodeValue(-1,'-1')
+                              mn$b = node
+                              node = mn
+                            }
+                            return(node)
                           }
                         }
                         
@@ -349,21 +379,6 @@ ParseComputation <- setRefClass("ParseComputation",
                           if(nchar(token) ==0){
                             next;
                           }
-                          
-                        #  if(token=='%'){ #special stuff
-                        #    newToken = token
-                        #    while(nchar(token)>0 ){
-                        #      tok=  lexer$getNextToken(allChars,pos)
-                        #      token = tok$str
-                        #      pos = tok$pos
-                        #      printf('token:%s',token)
-                        #      newToken =paste(newToken, token, sep="",collapse = '' )
-                        #      if(token=='%'){
-                        #        break
-                        #      }
-                        #    }
-                        #    token = newToken
-                        #  }
                           
                           
                           if(token=='('){
@@ -511,8 +526,11 @@ ComputationNodeFunction <- setRefClass("ComputationNodeFunction",
                                                fcn = eval(base::parse(text=fcnt) )
                                         #       printf(class(.self$slots[[1]]))
                                             # printf('call:%s with class %s ncol:%d',fcnt ,class(.self$slots[[1]]$compute()),ncol(.self$slots[[1]]$compute()) )
-                                               
-                                               return(fcn(.self$slots[[1]]$compute()) )
+                                               ret = fcn(.self$slots[[1]]$compute())
+                                               if(!is.matrix(ret)){
+                                                 ret = matrix(ret)
+                                               }
+                                               return( ret)
                                            #  }
                                            }
                                            
@@ -528,7 +546,11 @@ ComputationNodeFunction <- setRefClass("ComputationNodeFunction",
                                            params = paste(params,sep='',collapse = ',')
                                            fnCall = paste(fcnt,'(',params,')',sep='',collapse = '')
                                        #     printf('function Call:%s',fnCall)
-                                           return(eval(base::parse(text=fnCall) ) )
+                                           ret = eval(base::parse(text=fnCall) )
+                                           if(!is.matrix(ret)){
+                                             ret = matrix(ret)
+                                           }
+                                           return(ret )
                                          },
                                          setText= function(txt){
                                            printf('settext:%s',txt)
@@ -547,20 +569,4 @@ ComputationNodeFunction <- setRefClass("ComputationNodeFunction",
                                        )
 )
 
-text = "3+1*5*2"
-pc = ParseComputation()
-res = pc$parse(text)
-res$compute()
-
-text = "1*4+2+1*2*1+10"
-res = pc$parse(text)
-res$compute()
-
-text = "sqrt(2)[c(1) ,1]"
-res = pc$parse(text)
-res$compute()
-
-text = "-4%*%1"
-res = pc$parse(text)
-res$compute()
 

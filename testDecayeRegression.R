@@ -67,3 +67,12 @@ plot(sliceSamples[,'beta0'])
 plot(sliceSamples[,'lambda'])
 plot(sliceSamples[,'s'])
 colMeans(sliceSamples)
+
+
+laplace = LaplaceApproximation(root_plate)
+laplaceApprox = laplace$takeSample(50)
+plot(laplaceApprox[,1])
+
+
+
+

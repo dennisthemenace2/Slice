@@ -24,6 +24,7 @@ model regModel{
 source('./distributions/cNodes.R')
 source('./distributions/base.R')
 source('./parser/parser.R')
+source('./sampler/sampler.R')
 
 ##
 #generate some data
