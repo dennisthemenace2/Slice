@@ -1,0 +1,11 @@
+Package: Slice
+Type: Package
+Title: Slice Bayesian Inference Engine
+Version: 0.01
+Date: 2019-11-29
+Author: Dennis Becker
+Maintainer: Dennis Becker <dbecker@leuphana.de>
+Description: 
+License:  GPL (>= 2)
+LazyLoad: yes
+Imports: extraDistr,stats
