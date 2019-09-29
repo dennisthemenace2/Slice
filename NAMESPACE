@@ -1,10 +1,9 @@
-useDynLib(Slice, .registration = TRUE)
-importFrom(stats)
-importFrom(extraDistr)
+import(stats)
+import(extraDistr)
 
 
-export(Lexer)
-export(Sampler)
-export(MCMCsampler)
-export(LaplaceApproximation)
-export(SliceSampler)
+exportClasses(Lexer)
+exportClasses(Sampler)
+exportClasses(MCMCsampler)
+exportClasses(LaplaceApproximation)
+exportClasses(SliceSampler)

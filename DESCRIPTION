@@ -5,7 +5,8 @@ Version: 0.01
 Date: 2019-11-29
 Author: Dennis Becker
 Maintainer: Dennis Becker <dbecker@leuphana.de>
-Description: 
+Description: Provides Bayesian Inference
 License:  GPL (>= 2)
 LazyLoad: yes
 Imports: extraDistr,stats
+Collate: node.R base.R parser.R cNodes.R sampler.R

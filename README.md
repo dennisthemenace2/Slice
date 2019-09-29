@@ -3,11 +3,9 @@ Bayesian inference engine with focus on slice sampling.
 
 
 
-This is currently under development.
+This is currently under development. The code has now been moved inside a R package.
 
 It is supposed to be a highly flexible inference engine, that allows to utilize and implement different samplers.
-
-
 
 
 
@@ -47,7 +45,7 @@ x<- matrix(X[,1],ncol = 1)
 data_list = list( 'y'=list(y,y) , 'x'=list(x,x) ,'k'=2)
 
 
-lex = Lexer()
+lex = new(Lexer)
 lex$setModelString(model_str)
 lex$setModelData(data_list)
 
@@ -55,7 +53,7 @@ lex$lexModel() ## preapres the model
 root_plate = lex$parseModel() ## creates the model
 
 ### parsed model can be used to sample
-sliceSample = SliceSampler(root_plate)
+sliceSample = new('SliceSampler',root_plate)
 sliceSamples = sliceSample$takeSample(1000) ## take 1000 samples
 
 colMeans(sliceSamples)
@@ -136,7 +134,7 @@ Next we set the data list, parse the model, and use the MCMC sampler (Slice woul
 data_list = list(y=matrix(y),x1=matrix(x[,1]),x2=matrix(x[,2]) )
 
 
-lex = Lexer()
+lex = new('Lexer')
 lex$setModelString(model_str)
 lex$setModelData(data_list)
 
@@ -144,7 +142,7 @@ lex$lexModel()
 
 root_plate = lex$parseModel()
 
-mcmcSample = MCMCsampler(root_plate)
+mcmcSample = new('MCMCsampler',root_plate)
 
 samplesFromProblem = mcmcSample$takeSample(1000,initialValues =list('alpha0[1]'=matrix(0),'alpha0[2]'=matrix(1) ))
 
@@ -250,6 +248,7 @@ In the testRnn.R, you will find the working example.
 
 # Todo list
 
+* add support for different samplers among levels
 * debugging functions
 * add bootstrapping support
 * more distributions
