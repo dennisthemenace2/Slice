@@ -38,13 +38,12 @@ Simple MCMC sampler class:
 Slice sampler class: 
 \code{\link[Slice:SliceSampler]{SliceSampler}}
 
+Maximum likelihood based sampler class: 
+
 
 }
 \examples{
-#require('Slice')
-#sampler = new('Sampler',model)
-
-
+# you should inherit from this model. It does not provide functionality.
 }
 
 

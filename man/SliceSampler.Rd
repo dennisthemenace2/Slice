@@ -38,13 +38,15 @@ Base sampler class:
 Slice sampler class: 
 \code{\link[Slice:MCMCsampler]{MCMCsampler}}
 
+Maximum likelihood based sampler class: 
+\code{\link[Slice:LaplaceApproximation]{LaplaceApproximation}}
 
 }
 \examples{
 
-
 require('Slice')
-#### ordered logit  model
+
+#### ordered logit model
 
 #Generate data:
 set.seed(1234)
@@ -75,10 +77,11 @@ for( i in 1:n){
 }
 
 y = matrix(y,ncol=1)
-
-###
+## data is generated 
 
 data_list = list(y=matrix(y),x1=matrix(x[,1]),x2=matrix(x[,2]) )
+
+###define the model
 
 sigmoid = function(x){ matrix(1/(1+exp(-x) )) }
 
@@ -111,6 +114,7 @@ model{
 }
 '
 
+##create model
 lex = new('Lexer')
 lex$setModelString(model_str)
 lex$setModelData(data_list)

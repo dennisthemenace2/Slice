@@ -5,7 +5,7 @@
 A simple MCMC sampler class
 }
 \description{
-This is a simple MCMC sampler class that can be used to generade samples from a model.
+This is a simple MCMC sampler class that can be used to generate samples from a model.
 }
 \usage{
  sampler = new("MCMCsampler",model)
@@ -21,8 +21,8 @@ This is a simple MCMC sampler class that can be used to generade samples from a 
 \details{
 This sampler inherits from the base class sampler. The function takeSample can be used to sample from the model.
 Before the sampler starts, it creates a list with all nodes to sample from. This is done to speed up the sampling process.
-It then calls the sample funtion, with a list of likelihood objects and prior prior object. This this can be overwritten for convenience by other samplers.
-The takeSample function can take up to 3 parameters (nSamples,initialValues = list(),addtionalNodes=list()). The first one is how many samples are to be taken, the second one is list with names and inital values to set, the last parameter is a list of names with addtional nodes to track. This can be usefull if model variables (helperNodes) are to be tracked as well.
+It then calls the sample function, with a list of likelihood objects and prior prior object. This this can be overwritten for convenience by other samplers.
+The takeSample function can take up to 3 parameters (nSamples,initialValues = list(),addtionalNodes=list()). The first one is how many samples are to be taken, the second one is list with names and initial values to set, the last parameter is a list of names with addtional nodes to track. This can be useful if model variables (helperNodes) are to be tracked as well.
 }
 \value{
 Returns a valid sampler object.
@@ -40,6 +40,9 @@ Base sampler class:
 
 Slice sampler class: 
 \code{\link[Slice:SliceSampler]{SliceSampler}}
+
+Maximum likelihood based sampler class: 
+\code{\link[Slice:LaplaceApproximation]{LaplaceApproximation}}
 
 
 }
