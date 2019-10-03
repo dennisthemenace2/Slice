@@ -5,7 +5,7 @@
 Slince Bayesian Inference Engine 
 }
 \description{
-Bayesian Inference 
+Bayesian Inference engine that parses Bugs language to create a model.
 
 }
 \details{
@@ -33,5 +33,11 @@ Maintainer: Dennis Becker <dbecker@leuphana.de>
 \keyword{ package }
 
 \seealso{
+Lexer Class: 
+\code{\link[Slice:Lexer]{Lexer}}
+
+
+Base Sampler class: 
+\code{\link[Slice:Sampler]{Sampler}}
 
 }
